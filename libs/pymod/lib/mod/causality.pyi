@@ -20,7 +20,12 @@ class OutputAction:
 
 	def applyTo(self, marking: Marking) -> None: ...
 
-Action = Union[EdgeAction, InputAction, OutputAction]
+class UpdateAction:
+	updates: List[Tuple[mod.DG.Vertex, int]]
+
+	def applyTo(self, marking: Marking) -> None: ...
+
+Action = Union[EdgeAction, InputAction, OutputAction, UpdateAction]
 
 
 class EventTrace:

@@ -34,6 +34,34 @@ PyObject *EventTrace_Event_action(const EventTrace::Event &e) {
 	return Action_to_python::convert(e.action);
 }
 
+std::vector<std::pair<dg::DG::Vertex, int>> UpdateAction_parseUpdates(const py::object &updates) {
+    std::vector<std::pair<dg::DG::Vertex, int>> parsed;
+	const int n = py::len(updates);
+	parsed.reserve(n);
+	for(int i = 0; i < n; ++i) {
+		py::tuple entry = py::extract<py::tuple>(updates[i]);
+		if(py::len(entry) != 2) {
+		    // TODO correct error handling
+			continue;
+		}
+		parsed.emplace_back(
+			py::extract<dg::DG::Vertex>(entry[0]),
+			py::extract<int>(entry[1])
+		);
+	}
+	return parsed;
+}
+UpdateAction *UpdateAction_fromUpdates(const py::object &updates) {
+    return new UpdateAction(UpdateAction_parseUpdates(updates));
+}
+py::list UpdateAction_getUpdates(const UpdateAction &a) {
+    py::list updates;
+	for(const auto &[v, c] : a.updates) {
+		updates.append(py::make_tuple(v, c));
+	}
+	return updates;
+}
+
 } // namespace
 
 void EventTrace_doExport() {
@@ -106,6 +134,23 @@ void EventTrace_doExport() {
 					// rst:
 					// rst:			:param Marking m: the marking to apply the action to.
 			.def("applyTo", &OutputAction::applyTo);
+	// rst: .. class:: causality.UpdateAction
+	// rst:
+	py::class_<UpdateAction>("UpdateAction", py::no_init)
+	        // rst:     .. method:: __init__()
+	        // rst:                 __init__(updates)
+	        .def(py::init<>())
+	        .def("__init__", py::make_constructor(&UpdateAction_fromUpdates))
+	        .def(py::self == py::self)
+	        .def(py::self != py::self)
+	        .def(str(py::self))
+	        .add_property("updates", &UpdateAction_getUpdates)
+					// rst:		.. function:: void applyTo(m) const
+					// rst:
+					// rst:			Appling all deltas to given vertices
+					// rst:
+					// rst:			:param Marking m: the marking to apply the action to.
+			.def("applyTo", &UpdateAction::applyTo);
 
 	py::to_python_converter<Action, Action_to_python>();
 
@@ -164,13 +209,14 @@ void EventTrace_doExport() {
 					// rst:
 					// rst:			:param float time: the time associated with the event.
 					// rst:			:param action: the action of the event.
-					// rst:			:type action: EdgeAction or InputAction or OutputAction
+					// rst:			:type action: EdgeAction or InputAction or OutputAction or UpdateAction
 					// rst:			:raises: :class:`LogicError` if the time is less than the current time of the trace.
 					// rst:			:raises: :class:`LogicError` if the action has null descriptors.
 					// rst:			:raises: :class:`LogicError` if the descriptors in the action does not belong to the underlying derivation graph.
 			.def("add", &EventTrace_add<EdgeAction>)
 			.def("add", &EventTrace_add<InputAction>)
 			.def("add", &EventTrace_add<OutputAction>)
+			.def("add", &EventTrace_add<UpdateAction>)
 					// rst:		.. method:: print(printer=EventTracePrinter())
 					// rst:
 					// rst:			Create a plot of the counts throughout the event trace at each time point.

@@ -80,6 +80,14 @@ std::pair<std::optional<Action>, double> DrawMassActionFunction::draw(const Mark
 		Action operator()(lib::Causality::OutputAction a) const {
 			return OutputAction(dgHyper.getInterfaceVertex(a.v));
 		}
+
+		Action operator()(lib::Causality::UpdateAction a) const {
+            std::vector<std::pair<dg::DG::Vertex, int>> updates;
+            updates.reserve(a.updates.size());
+            for (const auto &[v, c] : a.updates)
+                updates.emplace_back(dgHyper.getInterfaceVertex(v), c);
+            return UpdateAction(std::move(updates));
+        }
 	public:
 		const lib::DG::Hyper &dgHyper;
 	};

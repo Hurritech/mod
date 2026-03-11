@@ -61,6 +61,27 @@ std::ostream &operator<<(std::ostream &s, const InputAction &e) {
 	return s << "InputAction{" << e.vertex << "}";
 }
 
+// ----------------------------------------------------------------------------
+
+void UpdateAction::applyTo(Marking &m) const {
+    for(const auto &[v, c] : updates) {
+        if(c >= 0) m.add(v, c);
+        else m.remove(vertex, -count);
+    }
+}
+
+bool operator==(const UpdateAction &a, const UpdateAction &b) {
+    return a.updates == b.updates; // TODO check if this works
+}
+
+bool operator!=(const UpdateAction &a, const UpdateAction &b) {
+    return !(a==b);
+}
+
+std::ostream &operator<<(std::ostream &s, const UpdateAction &e) {
+    return s << "UpdateAction{Printing not implemented yet}"; // TODO implement printing
+}
+
 // ############################################################################
 // ############################################################################
 
@@ -106,6 +127,14 @@ EventTrace::Event EventTrace::iterator::dereference() const {
 
 		Action operator()(const lib::Causality::OutputAction &a) const {
 			return OutputAction{dg_.getInterfaceVertex(a.v)};
+		}
+
+		Action operator()(const lib::Causality::UpdateAction &a) const {
+		    std::vector<std::pair<dg::DG::Vertex, int>> updates;
+            updates.reserve(a.updates.size());
+            for (const auto &[v, c] : a.updates)
+                updates.emplace_back(dg_.getInterfaceVertex(v), c);
+            return UpdateAction{std::move(updates)};
 		}
 	public:
 		const lib::DG::Hyper &dg_;
@@ -226,6 +255,18 @@ void EventTrace::add(double time, const Action &action) {
 			if(a.vertex.getDG() != dg)
 				throw LogicError("The vertex in the output action does not belong to the underlying derivation graph.");
 			return lib::Causality::OutputAction{dg->getHyper().getInternalVertex(a.vertex)};
+		}
+
+		lib::Causality::Action operator()(const UpdateAction &a) const {
+		    std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+		    updates.reserve(a.updates.size());
+		    for (const auto &[v, c] : a.updates) {
+		        if(!v) throw LogicError("Can not add update event with null vertex.");
+		        if(v.getDG() != dg)
+		            throw LogicError("A vertex in the update action does not belong to the underlying derivation graph.");
+                updates.emplace_back(dg->getHyper().getInternalVertex(v), c);
+            }
+            return lib::Causality::UpdateAction{std::move(updates)};
 		}
 	public:
 		std::shared_ptr<dg::DG> dg;

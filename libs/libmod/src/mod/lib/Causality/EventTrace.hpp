@@ -6,6 +6,8 @@
 #include <mod/lib/IO/Json.hpp>
 
 #include <variant>
+#include <utility>
+#include <vector>
 
 namespace mod::lib::DG {
 struct Hyper;
@@ -24,7 +26,11 @@ struct OutputAction {
 	lib::DG::HyperVertex v;
 };
 
-using Action = std::variant<EdgeAction, InputAction, OutputAction>;
+struct UpdateAction {
+    std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+};
+
+using Action = std::variant<EdgeAction, InputAction, OutputAction, UpdateAction>;
 
 struct EventTrace {
 	struct Event {

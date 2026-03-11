@@ -21,6 +21,10 @@ struct CompareVisitor {
 		return a.v == b.v;
 	}
 
+	bool operator()(const UpdateAction &a, const UpdateAction &b) const {
+	    return a.updates == b.updates; // TODO check if this works
+	}
+
 	template<typename T, typename U>
 	std::enable_if_t<!std::is_same_v < T, U>, bool>
 	operator()(const T &a, const U &b) const {
@@ -63,7 +67,7 @@ const std::vector <EventTrace::Event> &EventTrace::getEvents() const {
 nlohmann::json EventTrace::dump() const {
 	syncSize();
 	nlohmann::json j;
-	j["version"] = 1;
+	j["version"] = 2;
 	j["dgData"] = lib::DG::Write::dumpDigest(dg.getGraph());
 
 	const auto dgIdx = get(boost::vertex_index_t(), dg.getGraph());
@@ -78,16 +82,25 @@ nlohmann::json EventTrace::dump() const {
 	{
 		auto es = nlohmann::json::array();
 		struct Visitor {
-			int operator()(const EdgeAction &a) const {
+			nlohmann::json operator()(const EdgeAction &a) const {
 				return idx[a.e];
 			}
 
-			int operator()(const InputAction &a) const {
+			nlohmann::json operator()(const InputAction &a) const {
 				return -idx[a.v] - 1;
 			}
 
-			int operator()(const OutputAction &a) const {
+			nlohmann::json operator()(const OutputAction &a) const {
 				return idx[a.v];
+			}
+
+			nlohmann::json operator()(const UpdateAction &a) const {
+			    auto updates = nlohmann::json::array();
+                for (const auto &[v, c] : a.updates)
+                    updates.push_back(nlohmann::json::array({idx[v], c}));
+                nlohmann::json j;
+                j["updates"] = std::move(updates);
+                return j;
 			}
 		public:
 			decltype(dgIdx) idx;
@@ -116,14 +129,22 @@ std::optional <EventTrace> EventTrace::load(const Net &net, const std::string &f
 	    "$schema": "http://json-schema.org/draft-07/schema#",
 	    "type": "object",
 	    "properties": {
-	        "version": {"type": "integer", "minimum": 1, "maximum": 1},
+	        "version": {"type": "integer", "minimum": 1, "maximum": 2},
 	        "initialState": {"type": "array", "items": {"type": "array", "prefixItems": [
 	            {"type": "integer", "minimum": 0, "description": "vertex ID"},
 	            {"type": "integer", "minimum": 0, "description": "token count"}
 	        ], "minItems": 2, "maxItems": 2}},
 	        "events": {"type": "array", "items": {"type": "array", "prefixItems": [
 	            {"type": "number",  "description": "event time"},
-	            {"type": "integer", "description": "action encoding"}
+	            {"oneOf": [
+	                {"type": "integer", "description": "action encoding"},
+	                {"type": "object", "properties": {
+	                    "updates": {"type": "array", "items": {"type": "array", "prefixItems": [
+	                        {"type": "integer", "minimum": 0, "description": "vertex ID"},
+	                        {"type": "integer", "description", "delta token count"}
+	                    ], "minItems": 2, "maxItems": 2}}
+	                }, "required": ["updates"], "additionalProperties": false}
+	            ]}
 	        ], "minItems": 2, "maxItems": 2}}
 	    },
 	    "required": ["version", "dgData", "initialState", "events"]
@@ -155,19 +176,34 @@ std::optional <EventTrace> EventTrace::load(const Net &net, const std::string &f
 	for(const auto &je: j["events"]) {
 		assert(je.size() == 2);
 		const double time = je[0];
-		const int action = je[1];
-		if(action >= 0) {
-			const auto vOpt = lib::DG::Read::vertexOrEdge(dg, action, err, "Event edge or output action error.");
-			if(!vOpt) return {};
-			if(dg[*vOpt].kind == lib::DG::HyperVertexKind::Edge) {
-				trace.add(Event{time, EdgeAction{*vOpt}});
-			} else {
-				trace.add(Event{time, OutputAction{*vOpt}});
-			}
+		const auto &actionEncoded = je[1];
+		if(actionEncoded.is_number_integer()) {
+		    const int action = actionEncoded.get<int>();
+            if(action >= 0) {
+                const auto vOpt = lib::DG::Read::vertexOrEdge(dg, action, err, "Event edge or output action error.");
+                if(!vOpt) return {};
+                if(dg[*vOpt].kind == lib::DG::HyperVertexKind::Edge) {
+                    trace.add(Event{time, EdgeAction{*vOpt}});
+                } else {
+                    trace.add(Event{time, OutputAction{*vOpt}});
+                }
+            } else {
+                const auto vOpt = lib::DG::Read::vertex(dg, -(action + 1), err, "Event input action error.");
+                if(!vOpt) return {};
+                trace.add(Event{time, InputAction{*vOpt}});
+            }
 		} else {
-			const auto vOpt = lib::DG::Read::vertex(dg, -(action + 1), err, "Event input action error.");
-			if(!vOpt) return {};
-			trace.add(Event{time, InputAction{*vOpt}});
+		    const auto &updateEntries = actionEncoded["updates"];
+            std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+            updates.reserve(updateEntries.size());
+            for(const auto &jUpdate : updateEntries) {
+                const std::size_t jv = jUpdate[0];
+                const int jc = jUpdate[1];
+                const auto vOpt = lib::DG::Read::vertex(dg, jv, err, "Event update action vertex error.");
+                if(!vOpt) return {};
+                updates.emplace_back(*vOpt, jc);
+            }
+            trace.add(Event{time, UpdateAction{std::move(updates)}});
 		}
 	}
 

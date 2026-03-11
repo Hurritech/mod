@@ -1381,6 +1381,8 @@ class _Simulator:
 				subset = []
 			elif isinstance(action, causality.InputAction):
 				subset = [action.vertex]
+			elif isinstance(action, causality.UpdateAction):
+				subset = subset # TODO: Compute new subset
 			else:
 				assert False, "Unknown action for subset computation: {}".format(action)
 			action.applyTo(marking)

@@ -118,6 +118,11 @@ EventTraceData calculatePlotPoints(const lib::Causality::EventTrace &trace, cons
 			void operator()(lib::Causality::OutputAction event) const {
 				u(time, event.v, -1);
 			}
+
+			void operator()(lib::Causality::UpdateAction event) const {
+			    for(const auto &[v, c] : event.updates)
+			        u(time, v, c);
+			}
 		public:
 			const lib::DG::HyperGraphType &dg;
 			mutable std::remove_const<decltype(update)>::type u;

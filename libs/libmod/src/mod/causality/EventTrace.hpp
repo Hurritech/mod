@@ -9,6 +9,8 @@
 #include <boost/iterator/iterator_facade.hpp>
 
 #include <variant>
+#include <utility>
+#include <vector>
 
 namespace mod::causality {
 
@@ -88,8 +90,31 @@ public:
 	dg::DG::Vertex vertex;
 };
 
+// rst:
+// rst: .. class:: causality::UpdateAction
+// rst:
+struct MOD_DECL UpdateAction {
+    // rst:     .. function:: UpdateAction()
+    // rst:                   UpdateAction(std::vector<std::pair<dg::DG::Vertex, int>> updates)
+    UpdateAction() = default;
+    UpdateAction(std::vector<std::pair<dg::DG::Vertex, int>> updates) : updates(updates) {}
+    // rst:     .. function:: void applyTo(Marking &m) const
+    // rst:
+    // rst:         Perform `m.add(vertex, amount)` or `m.remove(vertex, amount)` according to sign for every vertex
+    void applyTo(Marking &m) const;
+public:
+    MOD_DECL friend bool operator==(const UpdateAction &a, const UpdateAction &b);
+    MOD_DECL friend bool operator!=(const UpdateAction &a, const UpdateAction &b);
+    MOD_DECL friend std::ostream &operator<<(std::ostream &s, const UpdateAction &e);
+public:
+    // rst:     .. var:: std::vector<std::pair<dg::DG::Vertex, int>> updates
+    // rst:
+    // rst:         May not be a null vector.
+    std::vector<std::pair<dg::DG::Vertex, int>> updates;
+};
+
 // the rst is on top
-using Action = std::variant<EdgeAction, InputAction, OutputAction>;
+using Action = std::variant<EdgeAction, InputAction, OutputAction, UpdateAction>;
 
 // rst:
 // rst-class: causality::EventTrace
