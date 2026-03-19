@@ -174,7 +174,64 @@ std::pair<Action, double> DrawMassActionFunction::draw_v0(const Marking &m) {
 	}
 }
 
-// =============================================================================================0
+// ==============================================================================================
+
+DrawMassActionTauLeapingFunction::DrawMassActionTauLeapingFunction(
+		const lib::DG::Hyper &dg,
+		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+		int dc,
+		double epsilon)
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), dc(dc), epsilon(epsilon) {
+	syncSize();
+}
+
+void DrawMassActionTauLeapingFunction::syncSize() {
+	const auto &g = dg.getGraph();
+	const auto n = num_vertices(g);
+	cachedInputRates.resize(n, -1.0);
+	cachedRates.resize(n, -1.0);
+}
+
+std::pair<Action, double> DrawMassActionTauLeapingFunction::draw(const Marking &m) {
+	return draw_v0(m);
+}
+
+double DrawMassActionTauLeapingFunction::reactionPropensity(lib::DG::HyperVertex e, const Marking &m) {
+	const petri::Transition t = m.getNet().getTransition(e);
+	const auto &marking = m.getMarking();
+	assert(marking.isEnabled(t));
+	const auto &net = m.getNet().getNet();
+	const auto &g = net.getGraph();
+	const auto vt = net.vertexFromTransition(t);
+	double res = 1.0;
+	for(const auto eIn: asRange(in_edges(vt, g))) {
+		const auto vIn = source(eIn, g);
+		assert(g[vIn].kind == petri::Net::Kind::Place);
+		const int c = marking[net.placeFromVertex(vIn)];
+		const int w = g[eIn];
+		switch(w) {
+		case 1:
+			res *= c;
+			break;
+		case 2:
+			res *= c * (c - 1) / 2;
+			break;
+		default:
+			res *= boost::math::binomial_coefficient<double>(c, w);
+			break;
+		}
+	}
+	return res;
+}
+
+std::pair<Action, double> DrawMassActionFunction::draw_v0(const Marking &m) {
+	// TODO Implement
+	return NULL;
+}
+
+// ==============================================================================================
 
 void Simulator::doIteration() {
 	++iteration;

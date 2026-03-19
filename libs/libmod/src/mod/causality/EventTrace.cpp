@@ -102,7 +102,7 @@ std::ostream &operator<<(std::ostream &s, const EventTrace::Event &e) {
 // ############################################################################
 
 struct EventTrace::Pimpl {
-	std::shared_ptr<Net> net; // to keep it alive
+	std::shared_ptr<Net> net; // to keep it alivel
 	lib::Causality::EventTrace t;
 };
 

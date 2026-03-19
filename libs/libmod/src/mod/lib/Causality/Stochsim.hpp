@@ -31,6 +31,26 @@ private:
 	std::vector<double> cachedInputRates, cachedRates /* reaction and output */;
 };
 
+struct DrawMassActionTauLeapingFunction {
+    DrawMassActionTauLeapingFunction(const lib::DG::Hyper &dg,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+        int dc, double epsilon);
+    void syncSize();
+    std::pair<Action, double> draw(const Marking &m);
+private:
+    double reactionPropensity(lib::DG::HyperVertex e, const Marking &m);
+    std::pair<Action, double> draw_v0(const Marking &m);
+private:
+    const lib::DG::Hyper &dg;
+    const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
+            inputRate, reactionRate, outputRate;
+    const int dc;
+    const double epsilon;
+    std::vector<double> cachedInputRates, cachedRates
+};
+
 struct Simulator {
 public:
 	int getIteration() const { return iteration; }

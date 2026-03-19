@@ -96,6 +96,95 @@ std::pair<std::optional<Action>, double> DrawMassActionFunction::draw(const Mark
 
 // =============================================================================================================
 
+struct DrawMassActionTauLeapingFunction::Pimpl {
+	std::shared_ptr<dg::DG> dg_;
+	lib::Causality::DrawMassActionTauLeapingFunction m;
+};
+
+DrawMassActionTauLeapingFunction::DrawMassActionTauLeapingFunction(std::shared_ptr<dg::DG> dg_,
+        std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
+        std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
+        std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
+        int dc, double epsilon) {
+	if(!dg_) throw LogicError("The derivation graph is a null pointer.");
+	if(!dg_->hasActiveBuilder() && !dg_->isLocked())
+		throw LogicError("The DG neither has an active builder nor is locked yet.");
+
+	using F = std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>;
+	F inputRateInner, reactionRateInner, outputRateInner;
+	if(inputRate) {
+		inputRateInner = [inputRate](const lib::DG::Hyper &dgHyper,
+		                             const lib::DG::HyperVertex v) -> std::pair<double, bool> {
+			return inputRate(dgHyper.getInterfaceVertex(v));
+		};
+	}
+	if(reactionRate) {
+		reactionRateInner = [reactionRate](const lib::DG::Hyper &dgHyper,
+		                                   const lib::DG::HyperVertex e) -> std::pair<double, bool> {
+			return reactionRate(dgHyper.getInterfaceEdge(e));
+		};
+	}
+	if(outputRate) {
+		outputRateInner = [outputRate](const lib::DG::Hyper &dgHyper,
+		                               const lib::DG::HyperVertex v) -> std::pair<double, bool> {
+			return outputRate(dgHyper.getInterfaceVertex(v));
+		};
+	}
+	p.reset(new Pimpl{
+		dg_, lib::Causality::DrawMassActionTauLeapingFunction(
+				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, dc, epsilon)
+	});
+}
+
+DrawMassActionTauLeapingFunction::~DrawMassActionTauLeapingFunction() = default;
+DrawMassActionTauLeapingFunction::DrawMassActionTauLeapingFunction(DrawMassActionTauLeapingFunction &&) = default;
+DrawMassActionTauLeapingFunction &DrawMassActionTauLeapingFunction::operator=(DrawMassActionTauLeapingFunction &&) = default;
+
+DrawMassActionTauLeapingFunction::DrawMassActionTauLeapingFunction(const DrawMassActionTauLeapingFunction &other) {
+	p.reset(new Pimpl(*other.p));
+}
+
+DrawMassActionTauLeapingFunction &DrawMassActionTauLeapingFunction::operator=(const DrawMassActionTauLeapingFunction &other) {
+	if(&other != this)
+		p.reset(new Pimpl(*other.p));
+	return *this;
+}
+
+void DrawMassActionTauLeapingFunction::syncSize() {
+	p->m.syncSize();
+}
+
+std::pair<std::optional<Action>, double> DrawMassActionTauLeapingFunction::draw(const Marking &m) {
+	if(m.getNet()->getDG() != p->dg_) throw LogicError("The marking is not on the underlying derivation graph.");
+	const auto [actionInner, total] = p->m.draw(m.getMarking());
+	if(total == 0) return {std::nullopt, 0};
+	struct Convert {
+		Action operator()(lib::Causality::EdgeAction a) const {
+			return EdgeAction(dgHyper.getInterfaceEdge(a.e));
+		}
+
+		Action operator()(lib::Causality::InputAction a) const {
+			return InputAction(dgHyper.getInterfaceVertex(a.v));
+		}
+
+		Action operator()(lib::Causality::OutputAction a) const {
+			return OutputAction(dgHyper.getInterfaceVertex(a.v));
+		}
+
+		Action operator()(lib::Causality::UpdateAction a) const {
+            std::vector<std::pair<dg::DG::Vertex, int>> updates;
+            updates.reserve(a.updates.size());
+            for (const auto &[v, c] : a.updates)
+                updates.emplace_back(dgHyper.getInterfaceVertex(v), c);
+            return UpdateAction(std::move(updates));
+        }
+	public:
+		const lib::DG::Hyper &dgHyper;
+	};
+	return {std::visit(Convert{p->dg_->getHyper()}, actionInner), total};
+
+// =============================================================================================================
+
 struct SimulatorImpl::Pimpl {
 	lib::Causality::Simulator sim;
 };

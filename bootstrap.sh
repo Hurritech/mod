@@ -85,6 +85,7 @@ echo "VERSION"
 # public versions are tagged with 'vA.B.0' and private with 'priv-A.B.0'
 # these are converted into A.B.0 and A.B.1, with the commit offset as 4th component
 v=$(git describe --tags --always --exclude "archive/*" | sed -e "s/^v//" -e 's/priv-\([0-9]*\.[0-9]*\)\.0/\1.1/' -e "s/-g.*$//" -e "s/-/./")
+v=1.0.0
 echo $v > VERSION
 cat VERSION
 echo "Docs"

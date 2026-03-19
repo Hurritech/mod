@@ -18,6 +18,19 @@ DrawMassActionFunction_ctor(std::shared_ptr<dg::DG> dg_,
 	                                                toStdFunction(outputRate));
 }
 
+std::shared_ptr<DrawMassActionTauLeapingFunction>
+DrawMassActionTauLeapingFunction_ctor(std::shared_ptr<dg::DG> dg_,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
+                            int dc, double epsilon) {
+	return std::make_shared<DrawMassActionTauLeapingFunction>(dg_,
+	                                                toStdFunction(inputRate),
+	                                                toStdFunction(reactionRate),
+	                                                toStdFunction(outputRate),
+	                                                dc, epsilon);
+}
+
 std::shared_ptr<SimulatorImpl>
 SimulatorImpl_ctor() {
 	return std::make_shared<SimulatorImpl>();
@@ -235,6 +248,12 @@ void Stochsim_doExport() {
 			.def("__init__", py::make_constructor(&DrawMassActionFunction_ctor))
 			.def("syncSize", &DrawMassActionFunction::syncSize)
 			.def("draw", &DrawMassActionFunction::draw);
+
+	// TODO Add rst
+    py::class_<DrawMassActionFunction>("_DrawMassActionTauLeapingFunction", py::no_init)
+			.def("__init__", py::make_constructor(&DrawMassActionTauLeapingFunction_ctor))
+			.def("syncSize", &DrawMassActionTauLeapingFunction::syncSize)
+			.def("draw", &DrawMassActionTauLeapingFunction::draw);
 
 	// rst:
 	// rst: .. class:: causality.DrawFunction
