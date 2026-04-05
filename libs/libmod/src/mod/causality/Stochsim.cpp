@@ -182,6 +182,7 @@ std::pair<std::optional<Action>, double> DrawMassActionTauLeapingFunction::draw(
 		const lib::DG::Hyper &dgHyper;
 	};
 	return {std::visit(Convert{p->dg_->getHyper()}, actionInner), total};
+}
 
 // =============================================================================================================
 

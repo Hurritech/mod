@@ -226,9 +226,10 @@ double DrawMassActionTauLeapingFunction::reactionPropensity(lib::DG::HyperVertex
 	return res;
 }
 
-std::pair<Action, double> DrawMassActionFunction::draw_v0(const Marking &m) {
+std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Marking &m) {
 	// TODO Implement
-	return NULL;
+	std::pair<Action, double> p;
+	return p;
 }
 
 // ==============================================================================================

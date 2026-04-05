@@ -48,7 +48,7 @@ private:
             inputRate, reactionRate, outputRate;
     const int dc;
     const double epsilon;
-    std::vector<double> cachedInputRates, cachedRates
+    std::vector<double> cachedInputRates, cachedRates;
 };
 
 struct Simulator {

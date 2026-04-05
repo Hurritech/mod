@@ -66,7 +66,7 @@ std::ostream &operator<<(std::ostream &s, const InputAction &e) {
 void UpdateAction::applyTo(Marking &m) const {
     for(const auto &[v, c] : updates) {
         if(c >= 0) m.add(v, c);
-        else m.remove(vertex, -count);
+        else m.remove(v, -c);
     }
 }
 
