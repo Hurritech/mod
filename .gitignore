@@ -27,3 +27,5 @@ __pycache__
 
 out/
 summary/
+
+custom_build.sh
