@@ -250,7 +250,7 @@ void Stochsim_doExport() {
 			.def("draw", &DrawMassActionFunction::draw);
 
 	// TODO Add rst
-    py::class_<DrawMassActionFunction>("_DrawMassActionTauLeapingFunction", py::no_init)
+    py::class_<DrawMassActionTauLeapingFunction>("_DrawMassActionTauLeapingFunction", py::no_init)
 			.def("__init__", py::make_constructor(&DrawMassActionTauLeapingFunction_ctor))
 			.def("syncSize", &DrawMassActionTauLeapingFunction::syncSize)
 			.def("draw", &DrawMassActionTauLeapingFunction::draw);

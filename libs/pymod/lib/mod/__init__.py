@@ -1434,7 +1434,6 @@ causality.Simulator = _Simulator  # type: ignore
 
 causality.Simulator.DrawMassAction.Function = causality._DrawMassActionFunction  # type: ignore
 causality.Simulator.DrawMassActionTauLeaping.Function = causality._DrawMassActionTauLeapingFunction
-# TODO do I need the following function for my new draw function to?
 
 _DrawMassActionFunction__init__orig = causality.Simulator.DrawMassAction.Function.__init__  # type: ignore
 def _DrawMassActionFunction__init__(self: causality.Simulator.DrawMassAction.Function,  # type: ignore
@@ -1450,6 +1449,21 @@ def _DrawMassActionFunction__init__(self: causality.Simulator.DrawMassAction.Fun
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
     return _DrawMassActionFunction__init__orig(self, dg, inputRate, reactionRate, outputRate)
 causality.Simulator.DrawMassAction.Function.__init__ = _DrawMassActionFunction__init__  # type: ignore
+
+_DrawMassActionTauLeapingFunction__init__orig = causality.Simulator.DrawMassActionTauLeaping.Function.__init__
+def _DrawMassActionTauLeapingFunction__init__(self: causality.Simulator.DrawMassAction.Function,
+            dg: DG,
+            inputRate:    Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]],
+            reactionRate: Union[None, Callable[[DG.HyperEdge],
+                Tuple[float, bool]], Tuple[float, bool]],
+            outputRate: Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]]) -> None:
+    inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
+    reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
+    outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
+    return _DrawMassActionTauLeapingFunction__init__orig(self, dg, inputRate, reactionRate, outputRate)
+causality.Simulator.DrawMassActionTauLeaping.Function.__init__ = _DrawMassActionTauLeapingFunction__init__orig
 
 
 ###########################################################
