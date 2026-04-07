@@ -250,8 +250,8 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
     std::vector<double> criticalPropensities;
 
     int notCriticalReaction = 0; // enumerates the non-critical reactions
-    for(const auto e: m.getAllEnabled()) {
-        const auto idx = get(boost::vertex_index_t(), dgGraph, e);
+    for(const auto &[idx, propensity] : propensities) {
+        const auto e = vertices(dgGraph).first[idx];
         const auto &net = m.getNet().getNet();
         const auto t = m.getNet().getTransition(e);
 
@@ -265,29 +265,35 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 
 	    if(critical) {
 	        criticalReactions.emplace_back(e);
-	        criticalPropensities.emplace_back(propensities[idx].second);
+	        criticalPropensities.emplace_back(propensity);
 	    } else {
-	        // TODO: check if resizing initializes the array correctly
 	        stoichiometric.resize(m.getNet().getNet().numPlaces(), notCriticalReaction+1, true);
+	        boost::numeric::ublas::vector<int> deltas(stoichiometric.size1(), 0);
 	        for(const auto &[place, w] : net.consumed(t))
-                stoichiometric(place.getId(), notCriticalReaction) -= static_cast<double>(w);
+                deltas(place.getId()) -= w;
             for(const auto &[place, w] : net.produced(t))
-                stoichiometric(place.getId(), notCriticalReaction) += static_cast<double>(w);
+                deltas(place.getId()) += w;
+            for(unsigned i = 0; i < deltas.size(); i++)
+                if(deltas(i) != 0)
+                    stoichiometric(i, notCriticalReaction) = static_cast<double>(deltas(i));
 
             notCriticalPropensities.resize(notCriticalReaction+1, true);
-            notCriticalPropensities(notCriticalReaction) = propensities[idx].second;
-            reactionIdx.emplace_back(propensities[idx].first);
+            notCriticalPropensities(notCriticalReaction) = propensity;
+            reactionIdx.emplace_back(idx);
 
             notCriticalReaction++;
 	    }
     }
 
+    // compute the highest multiplicity as a reactant of a non-critical reaction for each species
 	std::vector<double> gs(stoichiometric.size1());
-	for(unsigned i = 0; i < stoichiometric.size1(); i++) {
-	    int size2 = stoichiometric.size2();
-	    // TODO: fix min element for non-contiguous rows
-	    gs[i] = *std::min_element(stoichiometric.data().begin() + i * size2,
-                                  stoichiometric.data().begin() + (i + 1) * size2);
+	for(auto it1 = stoichiometric.begin1(); it1 != stoichiometric.end1(); it1++) {
+	    const std::size_t row = it1.index1();
+	    for(auto it2 = it1.begin(); it2 != it1.end(); it2++) {
+	        const double value = *it2;
+	        if(-value > gs[row])
+	            gs[row] = -value;
+	    }
 	}
 
 	auto sampleMeans = boost::numeric::ublas::prod(stoichiometric, notCriticalPropensities);
@@ -297,7 +303,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 
     for(const auto v: m.getNonZeroPlaces()) {
         const int amount = m.getMarking()[m.getNet().getPlace(v)];
-        const double g = std::max(1, -gs[m.getNet().getPlace(v).getId()]);
+        const double g = std::max(1, gs[m.getNet().getPlace(v).getId()]);
 
         double sampleMean = sampleMeans(m.getNet().getPlace(v).getId());
         double sampleVariance = sampleVariances(m.getNet().getPlace(v).getId());
@@ -333,7 +339,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
         timeTillCriticalReaction = -1;
 
     boost::numeric::ublas::vector<double> deltas(m.getNet().getNet().numPlaces(), 0.0);
-	// fire a next critical reaction if it happens withing the tau-interval
+	// fire the next critical reaction if it happens withing the tau-interval
 	if(timeTillCriticalReaction != -1 && (tau == -1 || timeTillCriticalReaction < tau)) {
         tau = timeTillCriticalReaction;
 
@@ -364,8 +370,8 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 
     std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
     for(const auto v: asRange(vertices(dgGraph))) {
-        const auto idx = get(boost::vertex_index_t(), dgGraph, v);
-        if(deltas(idx) != 0) updates.emplace_back(v, deltas(idx));
+        const auto place = m.getNet().getPlace(v);
+        if(deltas(place.getId()) != 0) updates.emplace_back(v, deltas(place.getId()));
     }
     Action action = UpdateAction{std::move(updates)};
     return {action, tau};
