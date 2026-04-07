@@ -22,7 +22,6 @@ struct DrawMassActionFunction {
 	// .second is 0.0 when no actions are possible
 	std::pair<Action, double> draw(const Marking &m);
 private:
-	double reactionPropensity(lib::DG::HyperVertex e, const Marking &m);
 	std::pair<Action, double> draw_v0(const Marking &m);
 private:
 	const lib::DG::Hyper &dg;
@@ -40,7 +39,6 @@ struct DrawMassActionTauLeapingFunction {
     void syncSize();
     std::pair<Action, double> draw(const Marking &m);
 private:
-    double reactionPropensity(lib::DG::HyperVertex e, const Marking &m);
     std::pair<Action, double> draw_v0(const Marking &m);
 private:
     const lib::DG::Hyper &dg;
