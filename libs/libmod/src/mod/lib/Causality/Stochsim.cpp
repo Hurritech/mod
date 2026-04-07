@@ -243,10 +243,15 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 		}
 	}
 
+    // stoichiometric matrix for the non-critical reactions
 	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), 0);
-    std::vector<lib::DG::HyperVertex> criticalReactions;
+	// propensities for the non-critical reactions
+	boost::numeric::ublas::vector<double> notCriticalPropensities;
+	// idx of the non-critical reactions
     std::vector<int> reactionIdx;
-    boost::numeric::ublas::vector<double> notCriticalPropensities;
+	// vertices of the critical reactions
+    std::vector<lib::DG::HyperVertex> criticalReactions;
+    // propensities for the critical reactions
     std::vector<double> criticalPropensities;
 
     int notCriticalReaction = 0; // enumerates the non-critical reactions
@@ -255,6 +260,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
         const auto &net = m.getNet().getNet();
         const auto t = m.getNet().getTransition(e);
 
+        // check if the current reactions is critical i.e. if it fully consumes a reactant in less than dc firings
         bool critical = false;
         for(const auto &[place, w] : net.consumed(t)) {
 	        if(m.getMarking()[place] / w < dc) {
@@ -267,6 +273,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 	        criticalReactions.emplace_back(e);
 	        criticalPropensities.emplace_back(propensity);
 	    } else {
+	        // compute the stoichiometry for the current reaction
 	        stoichiometric.resize(m.getNet().getNet().numPlaces(), notCriticalReaction+1, true);
 	        boost::numeric::ublas::vector<int> deltas(stoichiometric.size1(), 0);
 	        for(const auto &[place, w] : net.consumed(t))
@@ -285,7 +292,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 	    }
     }
 
-    // compute the highest multiplicity as a reactant of a non-critical reaction for each species
+    // compute the highest multiplicity of a reactant of a non-critical reaction for each species
 	std::vector<double> gs(stoichiometric.size1());
 	for(auto it1 = stoichiometric.begin1(); it1 != stoichiometric.end1(); it1++) {
 	    const std::size_t row = it1.index1();
@@ -296,11 +303,12 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 	    }
 	}
 
+    // compute the means and variances for the expected firings of any non-critical reaction
 	auto sampleMeans = boost::numeric::ublas::prod(stoichiometric, notCriticalPropensities);
 	auto sampleVariances = boost::numeric::ublas::prod(boost::numeric::ublas::element_prod(stoichiometric, stoichiometric), notCriticalPropensities);
 
+    // compute the maximum tau for which the leap condition holds on the non-critical reactions
     double tau = -1;
-
     for(const auto v: m.getNonZeroPlaces()) {
         const int amount = m.getMarking()[m.getNet().getPlace(v)];
         const double g = std::max(1, gs[m.getNet().getPlace(v).getId()]);
@@ -314,7 +322,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
         if(tau == -1 || newTau < tau) tau = newTau;
     }
 
-    // compute time till next criticalReaction
+    // compute time till the next criticalReaction
     std::vector<double> accPropensities(criticalPropensities.size());
 	{
 		// TODO: when GCC 8 can be dropped, change to the commented code
@@ -338,8 +346,8 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
     else
         timeTillCriticalReaction = -1;
 
+    // fire the next critical reaction if it happens withing the tau-interval
     boost::numeric::ublas::vector<double> deltas(m.getNet().getNet().numPlaces(), 0.0);
-	// fire the next critical reaction if it happens withing the tau-interval
 	if(timeTillCriticalReaction != -1 && (tau == -1 || timeTillCriticalReaction < tau)) {
         tau = timeTillCriticalReaction;
 
@@ -359,15 +367,16 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
             deltas(place.getId()) += static_cast<double>(w);
 	}
 
+    // compute the expected number of firings for any non-critical reaction
     boost::numeric::ublas::vector<double> firings(notCriticalPropensities.size());
     for(unsigned reaction = 0; reaction < notCriticalPropensities.size(); reaction++) {
         std::poisson_distribution<> dist(notCriticalPropensities(reaction) * tau);
         auto &rng = mod::lib::getRng();
 	    firings(reaction) = dist(rng);
     }
-
     deltas += boost::numeric::ublas::prod(stoichiometric, firings);
 
+    // construct an UpdateAction from the deltas
     std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
     for(const auto v: asRange(vertices(dgGraph))) {
         const auto place = m.getNet().getPlace(v);
