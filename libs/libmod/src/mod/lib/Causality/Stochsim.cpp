@@ -321,6 +321,13 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
         reaction++;
 	}
 
+	std::vector<double> gs(stoichiometric.size1());
+	for(unsigned i = 0; stoichiometric.size1(); i++) {
+	    int size2 = stoichiometric.size2();
+	    min_values[i] = *std::min_element(stoichiometric.data().begin() + i * size2,
+                                          stoichiometric.data().begin() + (i + 1) * size2);
+	}
+
     std::vector<int> reactionIdx;
 	boost::numeric::ublas::vector<double> propensities2(propensities.size());
 	for(unsigned i = 0; i < propensities.size(); i++) {
@@ -336,7 +343,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 
     for(const auto v: m.getNonZeroPlaces()) {
         const int amount = m.getMarking()[m.getNet().getPlace(v)];
-        const double g = 1; // TODO: Compute the correct value
+        const double g = std::max(1, -gs[m.getNet().getPlace(v).getId()]);
 
         double sampleMean = sampleMeans(m.getNet().getPlace(v).getId());
         double sampleVariance = sampleVariances(m.getNet().getPlace(v).getId());
