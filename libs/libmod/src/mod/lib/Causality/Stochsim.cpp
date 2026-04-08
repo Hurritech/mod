@@ -110,6 +110,37 @@ std::vector<PropensityEntry> computePropensities(
 	return propensities;
 }
 
+std::vector<std::pair<petri::Place,int>> consumed(const lib::DG::Hyper &dg, const Marking &m, int idx) {
+    const auto &dgGraph = dg.getGraph();
+    if(idx >= 0) {
+        const auto v = vertices(dgGraph).first[idx];
+        if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+            const auto &net = m.getNet().getNet();
+            const auto t = m.getNet().getTransition(v);
+            return net.consumed(t);
+        } else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+            const auto place = m.getNet().getPlace(v);
+            return std::vector<std::pair<petri::Place,int>>{{place,1}};
+        } else return {};
+    } else return {};
+}
+
+std::vector<std::pair<petri::Place,int>> produced(const lib::DG::Hyper &dg, const Marking &m, int idx) {
+    const auto &dgGraph = dg.getGraph();
+    if(idx >= 0) {
+        const auto v = vertices(dgGraph).first[idx];
+        if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+            const auto &net = m.getNet().getNet();
+            const auto t = m.getNet().getTransition(v);
+            return net.produced(t);
+        } else return {};
+    } else {
+        const auto v = vertices(dgGraph).first[-idx-1];
+        const auto place = m.getNet().getPlace(v);
+        return std::vector<std::pair<petri::Place,int>>{{place,1}};
+    }
+}
+
 } // namespace
 
 DrawMassActionFunction::DrawMassActionFunction(
@@ -247,22 +278,16 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), 0);
 	// propensities for the non-critical reactions
 	boost::numeric::ublas::vector<double> notCriticalPropensities;
-	// idx of the non-critical reactions
-    std::vector<int> reactionIdx;
-	// vertices of the critical reactions
-    std::vector<lib::DG::HyperVertex> criticalReactions;
+	// idx of the critical reactions
+    std::vector<int> criticalReactions;
     // propensities for the critical reactions
     std::vector<double> criticalPropensities;
 
     int notCriticalReaction = 0; // enumerates the non-critical reactions
     for(const auto &[idx, propensity] : propensities) {
-        const auto e = vertices(dgGraph).first[idx];
-        const auto &net = m.getNet().getNet();
-        const auto t = m.getNet().getTransition(e);
-
         // check if the current reactions is critical i.e. if it fully consumes a reactant in less than dc firings
         bool critical = false;
-        for(const auto &[place, w] : net.consumed(t)) {
+        for(const auto &[place, w] : consumed(dg, m, idx)) {
 	        if(m.getMarking()[place] / w < dc) {
 	            critical = true;
 	            break;
@@ -270,15 +295,15 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 	    }
 
 	    if(critical) {
-	        criticalReactions.emplace_back(e);
+	        criticalReactions.emplace_back(idx);
 	        criticalPropensities.emplace_back(propensity);
 	    } else {
 	        // compute the stoichiometry for the current reaction
 	        stoichiometric.resize(m.getNet().getNet().numPlaces(), notCriticalReaction+1, true);
 	        boost::numeric::ublas::vector<int> deltas(stoichiometric.size1(), 0);
-	        for(const auto &[place, w] : net.consumed(t))
+	        for(const auto &[place, w] : consumed(dg, m, idx))
                 deltas(place.getId()) -= w;
-            for(const auto &[place, w] : net.produced(t))
+            for(const auto &[place, w] : produced(dg, m, idx))
                 deltas(place.getId()) += w;
             for(unsigned i = 0; i < deltas.size(); i++)
                 if(deltas(i) != 0)
@@ -286,7 +311,6 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 
             notCriticalPropensities.resize(notCriticalReaction+1, true);
             notCriticalPropensities(notCriticalReaction) = propensity;
-            reactionIdx.emplace_back(idx);
 
             notCriticalReaction++;
 	    }
@@ -357,13 +381,11 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
         const auto pos = std::lower_bound(accPropensities.begin(), accPropensities.end(), rnd);
         const auto i = pos - accPropensities.begin();
         if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ": rnd=" << rnd << " i=" << i << std::endl;
-        auto actId = get(boost::vertex_index_t(), dgGraph, criticalReactions[i]);
+        auto actId = criticalReactions[i];
 
-        const auto &net = m.getNet().getNet();
-        const auto t = m.getNet().getTransition(criticalReactions[i]);
-	    for(const auto &[place, w] : net.consumed(t))
+	    for(const auto &[place, w] : consumed(dg, m, actId))
             deltas(place.getId()) -= static_cast<double>(w);
-        for(const auto &[place, w] : net.produced(t))
+        for(const auto &[place, w] : produced(dg, m, actId))
             deltas(place.getId()) += static_cast<double>(w);
 	}
 
@@ -379,10 +401,13 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
     // construct an UpdateAction from the deltas
     std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
     for(const auto v: asRange(vertices(dgGraph))) {
-        const auto place = m.getNet().getPlace(v);
-        if(deltas(place.getId()) != 0) updates.emplace_back(v, deltas(place.getId()));
+        if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+            const auto place = m.getNet().getPlace(v);
+            if(deltas(place.getId()) != 0) updates.emplace_back(v, deltas(place.getId()));
+        }
     }
     Action action = UpdateAction{std::move(updates)};
+    // TODO: this currently returns the timestep instead of the rate sum
     return {action, tau};
 }
 
