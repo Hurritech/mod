@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <cmath>
 
 namespace mod::lib::Causality {
 namespace {
@@ -403,7 +404,8 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
     for(const auto v: asRange(vertices(dgGraph))) {
         if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
             const auto place = m.getNet().getPlace(v);
-            if(deltas(place.getId()) != 0) updates.emplace_back(v, deltas(place.getId()));
+            const int delta = std::lround(deltas(place.getId()));
+            if(delta != 0) updates.emplace_back(v, delta);
         }
     }
     Action action = UpdateAction{std::move(updates)};
