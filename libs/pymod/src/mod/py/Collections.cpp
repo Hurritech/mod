@@ -95,6 +95,8 @@ void Collections_doExport() {
 	makePair<double, double>();
 	makePair<double, bool>();
 	makePair<std::optional<causality::Action>, double>();
+	py::to_python_converter<std::tuple<std::optional<causality::Action>, double, bool>,
+	                        TripleToTupleConverter<std::optional<causality::Action>, double, bool>>();
 
 	// Optional
 	py::to_python_converter<std::optional<int>, ToPythonOptionalValue<int>>();

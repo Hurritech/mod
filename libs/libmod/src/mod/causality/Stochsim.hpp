@@ -8,6 +8,7 @@
 #include <mod/dg/GraphInterface.hpp>
 
 #include <optional>
+#include <tuple>
 
 namespace mod::causality {
 
@@ -50,11 +51,12 @@ struct MOD_DECL DrawMassActionFunction {
 	// rst:
 	// rst:		Enlarges the internal data structures to the current size of the underlying derivation graph.
 	void syncSize();
-	// rst: .. function:: std::pair<std::optional<Action>, double> draw(const Marking &m)
+	// rst: .. function:: std::tuple<std::optional<Action>, double, bool> draw(const Marking &m)
 	// rst:
 	// rst:		:returns: an action, randomly selected according to the low of mass action
 	// rst:			based on the given population/marking and the rates.
 	// rst:			The second returned component is the sum of reactivity for the given reactions/hyperedges.
+	// rst:         The third returned component is false to indicate that no time increment is returned
 	// rst:
 	// rst:			If no events are possible, then the second component is 0.0 and the first component has no value.
 	// rst:
@@ -63,7 +65,7 @@ struct MOD_DECL DrawMassActionFunction {
 	// rst:		:throws: :class:`LogicError` if `m` is not a marking on the underlying derivation graph.
 	// rst:
 	// rst:		Requires :func:`syncSize` to have been called since the last time the underlying derivation graph has changed size.
-	std::pair<std::optional<Action>, double> draw(const Marking &m);
+	std::tuple<std::optional<Action>, double, bool> draw(const Marking &m);
 private:
 	struct Pimpl;
 	std::unique_ptr<Pimpl> p;
@@ -116,11 +118,12 @@ struct MOD_DECL DrawMassActionTauLeapingFunction {
 	// rst:
 	// rst:		Enlarges the internal data structures to the current size of the underlying derivation graph.
 	void syncSize();
-	// rst: .. function:: std::pair<std::optional<Action>, double> draw(const Marking &m)
+	// rst: .. function:: std::tuple<std::optional<Action>, double, bool> draw(const Marking &m)
 	// rst:
 	// rst:		:returns: an action, randomly selected according to the law of mass action
 	// rst:			based on the given population/marking and the rates.
 	// rst:			The second returned component is the tau (time increment) with the current update.
+	// rst:         The third returned component is true to indicate that a time increment is returned
 	// rst:
 	// rst:			If no events are possible, then the second component is 0.0 and the first component has no value.
 	// rst:
@@ -129,7 +132,7 @@ struct MOD_DECL DrawMassActionTauLeapingFunction {
 	// rst:		:throws: :class:`LogicError` if `m` is not a marking on the underlying derivation graph.
 	// rst:
 	// rst:		Requires :func:`syncSize` to have been called since the last time the underlying derivation graph has changed size.
-	std::pair<std::optional<Action>, double> draw(const Marking &m);
+	std::tuple<std::optional<Action>, double, bool> draw(const Marking &m);
 private:
 	struct Pimpl;
 	std::unique_ptr<Pimpl> p;

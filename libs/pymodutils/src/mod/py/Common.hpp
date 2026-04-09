@@ -9,6 +9,7 @@
 #undef BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 #include <optional>
+#include <tuple>
 
 namespace py = boost::python;
 namespace mod::Py {
@@ -23,6 +24,13 @@ template<class T1, class T2>
 struct PairToTupleConverter {
 	static PyObject *convert(const std::pair<T1, T2> &pair) {
 		return py::incref(py::make_tuple(pair.first, pair.second).ptr());
+	}
+};
+
+template<class T1, class T2, class T3>
+struct TripleToTupleConverter {
+	static PyObject *convert(const std::tuple<T1, T2, T3> &triple) {
+		return py::incref(py::make_tuple(std::get<0>(triple), std::get<1>(triple), std::get<2>(triple)).ptr());
 	}
 };
 

@@ -33,23 +33,26 @@ mak = makc(dg)
 fail(lambda: mak.draw(markingOther),
 	"The marking is not on the underlying derivation graph.")
 
-action, reactivity = mak.draw(marking)
+action, reactivity, isTimeInc = mak.draw(marking)
 assert action == causality.EdgeAction(e), action
 assert reactivity == 1
+assert isTimeInc is False
 
 marking = causality.Marking(net)
-action, reactivity = mak.draw(marking)
+action, reactivity, isTimeInc = mak.draw(marking)
 assert action is None
 assert reactivity == 0
+assert isTimeInc is False
 
 mak = DMA(
 	inputRate=lambda v: (1, True) if v == B else (0, True),
 	reactionRate=rRate,
 	outputRate=oRate)(dg)
 marking = causality.Marking(net)
-action, reactivity = mak.draw(marking)
+action, reactivity, isTimeInc = mak.draw(marking)
 assert action == causality.InputAction(B), action
 assert reactivity == 1
+assert isTimeInc is False
 
 mak = DMA(
 	inputRate=iRate,
@@ -57,6 +60,7 @@ mak = DMA(
 	outputRate=(1, True))(dg)
 marking = causality.Marking(net)
 marking.add(B, 1)
-action, reactivity = mak.draw(marking)
+action, reactivity, isTimeInc = mak.draw(marking)
 assert action == causality.OutputAction(B), action
 assert reactivity == 1
+assert isTimeInc is False

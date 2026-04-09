@@ -4,6 +4,7 @@
 #include <mod/lib/Causality/EventTrace.hpp>
 
 #include <functional>
+#include <tuple>
 
 namespace mod::lib::DG {
 struct Hyper;
@@ -20,9 +21,9 @@ struct DrawMassActionFunction {
 	                       outputRate);
 	void syncSize();
 	// .second is 0.0 when no actions are possible
-	std::pair<Action, double> draw(const Marking &m);
+	std::tuple<Action, double, bool> draw(const Marking &m);
 private:
-	std::pair<Action, double> draw_v0(const Marking &m);
+	std::tuple<Action, double, bool> draw_v0(const Marking &m);
 private:
 	const lib::DG::Hyper &dg;
 	const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
@@ -37,9 +38,9 @@ struct DrawMassActionTauLeapingFunction {
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
         int dc, double epsilon);
     void syncSize();
-    std::pair<Action, double> draw(const Marking &m);
+    std::tuple<Action, double, bool> draw(const Marking &m);
 private:
-    std::pair<Action, double> draw_v0(const Marking &m);
+    std::tuple<Action, double, bool> draw_v0(const Marking &m);
 private:
     const lib::DG::Hyper &dg;
     const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>

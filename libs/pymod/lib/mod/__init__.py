@@ -1384,12 +1384,12 @@ class _Simulator:
                     self.onExpandAvoided(self)
 
             # Pick reaction and time
-            action, rateSum = self._draw.draw(marking)
+            action, rateSum, isTimeInc = self._draw.draw(marking)
             if rateSum == 0:
                 self.onDeadlock(self)
                 break
 
-            timeInc = self._drawTime(rateSum)
+            timeInc = rateSum if isTimeInc else self._drawTime(rateSum)
             if stopTime is not None and self._impl.time + timeInc > stopTime:
                 if advanceToEndTime:
                     self._impl.time = stopTime

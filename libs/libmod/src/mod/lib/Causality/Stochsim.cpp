@@ -160,11 +160,11 @@ void DrawMassActionFunction::syncSize() {
 	cachedRates.resize(n, -1.0);
 }
 
-std::pair<Action, double> DrawMassActionFunction::draw(const Marking &m) {
+std::tuple<Action, double, bool> DrawMassActionFunction::draw(const Marking &m) {
 	return draw_v0(m);
 }
 
-std::pair<Action, double> DrawMassActionFunction::draw_v0(const Marking &m) {
+std::tuple<Action, double, bool> DrawMassActionFunction::draw_v0(const Marking &m) {
 	constexpr bool VERBOSE = false;
 
 	if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ":" << std::endl;
@@ -175,7 +175,7 @@ std::pair<Action, double> DrawMassActionFunction::draw_v0(const Marking &m) {
 
 	if(propensities.empty()) {
 		if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ": no actions" << std::endl;
-		return {{}, 0.0};
+		return {{}, 0.0, false};
 	}
 
 	std::vector<double> accPropensities(propensities.size());
@@ -215,16 +215,16 @@ std::pair<Action, double> DrawMassActionFunction::draw_v0(const Marking &m) {
 		const auto v = vertices(dgGraph).first[actId];
 		assert(get(boost::vertex_index_t(), dgGraph, v) == actId);
 		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
-			return {EdgeAction{v}, accPropensities.back()};
+			return {EdgeAction{v}, accPropensities.back(), false};
 		} else {
-			return {OutputAction{v}, accPropensities.back()};
+			return {OutputAction{v}, accPropensities.back(), false};
 		}
 	} else {
 		actId = -actId - 1;
 		const auto v = vertices(dgGraph).first[actId];
 		assert(get(boost::vertex_index_t(), dgGraph, v) == actId);
 		assert(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex);
-		return {InputAction{v}, accPropensities.back()};
+		return {InputAction{v}, accPropensities.back(), false};
 	}
 }
 
@@ -248,11 +248,11 @@ void DrawMassActionTauLeapingFunction::syncSize() {
 	cachedRates.resize(n, -1.0);
 }
 
-std::pair<Action, double> DrawMassActionTauLeapingFunction::draw(const Marking &m) {
+std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw(const Marking &m) {
 	return draw_v0(m);
 }
 
-std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Marking &m) {
+std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const Marking &m) {
 	constexpr bool VERBOSE = false;
 
 	if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ":" << std::endl;
@@ -263,7 +263,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
 
 	if(propensities.empty()) {
 		if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ": no actions" << std::endl;
-		return {{}, 0.0};
+		return {{}, 0.0, false};
 	}
 
 	if(VERBOSE) {
@@ -409,8 +409,7 @@ std::pair<Action, double> DrawMassActionTauLeapingFunction::draw_v0(const Markin
         }
     }
     Action action = UpdateAction{std::move(updates)};
-    // TODO: this currently returns the timestep instead of the rate sum
-    return {action, tau};
+    return {action, tau, true};
 }
 
 // ==============================================================================================

@@ -285,8 +285,9 @@ void Stochsim_doExport() {
 	// rst:
 	// rst:			:param Marking marking: the current state of the simulation.
 	// rst:				This may not be changed.
-	// rst:			:returns: the drawn action to take and a number indicating the activity of the system.
-	// rst:			:rtype: tuple[Action, float]
+	// rst:			:returns: the drawn action to take, a float, and a boolean indicating whether that float is
+	// rst:				an already drawn time increment (``True``) or the system activity to be converted to time (``False``).
+	// rst:			:rtype: tuple[Action, float, bool]
 	// rst:
 
 

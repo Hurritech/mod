@@ -64,10 +64,10 @@ void DrawMassActionFunction::syncSize() {
 	p->m.syncSize();
 }
 
-std::pair<std::optional<Action>, double> DrawMassActionFunction::draw(const Marking &m) {
+std::tuple<std::optional<Action>, double, bool> DrawMassActionFunction::draw(const Marking &m) {
 	if(m.getNet()->getDG() != p->dg_) throw LogicError("The marking is not on the underlying derivation graph.");
-	const auto [actionInner, total] = p->m.draw(m.getMarking());
-	if(total == 0) return {std::nullopt, 0};
+	const auto [actionInner, total, isTimeIncrement] = p->m.draw(m.getMarking());
+	if(total == 0) return {std::nullopt, 0, false};
 	struct Convert {
 		Action operator()(lib::Causality::EdgeAction a) const {
 			return EdgeAction(dgHyper.getInterfaceEdge(a.e));
@@ -91,7 +91,7 @@ std::pair<std::optional<Action>, double> DrawMassActionFunction::draw(const Mark
 	public:
 		const lib::DG::Hyper &dgHyper;
 	};
-	return {std::visit(Convert{p->dg_->getHyper()}, actionInner), total};
+	return {std::visit(Convert{p->dg_->getHyper()}, actionInner), total, isTimeIncrement};
 }
 
 // =============================================================================================================
@@ -154,10 +154,10 @@ void DrawMassActionTauLeapingFunction::syncSize() {
 	p->m.syncSize();
 }
 
-std::pair<std::optional<Action>, double> DrawMassActionTauLeapingFunction::draw(const Marking &m) {
+std::tuple<std::optional<Action>, double, bool> DrawMassActionTauLeapingFunction::draw(const Marking &m) {
 	if(m.getNet()->getDG() != p->dg_) throw LogicError("The marking is not on the underlying derivation graph.");
-	const auto [actionInner, total] = p->m.draw(m.getMarking());
-	if(total == 0) return {std::nullopt, 0};
+	const auto [actionInner, total, isTimeIncrement] = p->m.draw(m.getMarking());
+	if(total == 0) return {std::nullopt, 0, false};
 	struct Convert {
 		Action operator()(lib::Causality::EdgeAction a) const {
 			return EdgeAction(dgHyper.getInterfaceEdge(a.e));
@@ -181,7 +181,7 @@ std::pair<std::optional<Action>, double> DrawMassActionTauLeapingFunction::draw(
 	public:
 		const lib::DG::Hyper &dgHyper;
 	};
-	return {std::visit(Convert{p->dg_->getHyper()}, actionInner), total};
+	return {std::visit(Convert{p->dg_->getHyper()}, actionInner), total, isTimeIncrement};
 }
 
 // =============================================================================================================
