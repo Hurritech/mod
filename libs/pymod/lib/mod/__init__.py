@@ -8,9 +8,6 @@ from typing import (
     Any, Callable, cast, Dict, Iterable, List, Optional, Sequence,
     TextIO, Tuple, Type, Union
 )
-
-from test.py.causality.stochsim_500_lotka import reactionRate
-
 _redirected = False
 
 _oldFlags = sys.getdlopenflags()
@@ -1451,19 +1448,21 @@ def _DrawMassActionFunction__init__(self: causality.Simulator.DrawMassAction.Fun
 causality.Simulator.DrawMassAction.Function.__init__ = _DrawMassActionFunction__init__  # type: ignore
 
 _DrawMassActionTauLeapingFunction__init__orig = causality.Simulator.DrawMassActionTauLeaping.Function.__init__
-def _DrawMassActionTauLeapingFunction__init__(self: causality.Simulator.DrawMassAction.Function,
+def _DrawMassActionTauLeapingFunction__init__(self: causality.Simulator.DrawMassActionTauLeaping.Function,
             dg: DG,
             inputRate:    Union[None, Callable[[DG.Vertex],
                 Tuple[float, bool]], Tuple[float, bool]],
             reactionRate: Union[None, Callable[[DG.HyperEdge],
                 Tuple[float, bool]], Tuple[float, bool]],
             outputRate: Union[None, Callable[[DG.Vertex],
-                Tuple[float, bool]], Tuple[float, bool]]) -> None:
+                Tuple[float, bool]], Tuple[float, bool]],
+            dc: int,
+            epsilon: float) -> None:
     inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
     reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
-    return _DrawMassActionTauLeapingFunction__init__orig(self, dg, inputRate, reactionRate, outputRate)
-causality.Simulator.DrawMassActionTauLeaping.Function.__init__ = _DrawMassActionTauLeapingFunction__init__orig
+    return _DrawMassActionTauLeapingFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, dc, epsilon)
+causality.Simulator.DrawMassActionTauLeaping.Function.__init__ = _DrawMassActionTauLeapingFunction__init__
 
 
 ###########################################################

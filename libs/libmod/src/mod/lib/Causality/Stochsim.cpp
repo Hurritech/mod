@@ -118,7 +118,12 @@ std::vector<std::pair<petri::Place,int>> consumed(const lib::DG::Hyper &dg, cons
         if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
             const auto &net = m.getNet().getNet();
             const auto t = m.getNet().getTransition(v);
-            return net.consumed(t);
+            std::vector<std::pair<petri::Place,int>> result;
+            for(const auto &[place, w] : net.consumed(t)) {
+                std::pair<petri::Place,int> pair(place,w);
+                result.emplace_back(pair);
+            }
+            return result;
         } else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
             const auto place = m.getNet().getPlace(v);
             return std::vector<std::pair<petri::Place,int>>{{place,1}};
@@ -133,7 +138,12 @@ std::vector<std::pair<petri::Place,int>> produced(const lib::DG::Hyper &dg, cons
         if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
             const auto &net = m.getNet().getNet();
             const auto t = m.getNet().getTransition(v);
-            return net.produced(t);
+            std::vector<std::pair<petri::Place,int>> result;
+            for(const auto &[place, w] : net.produced(t)) {
+                std::pair<petri::Place,int> pair(place,w);
+                result.emplace_back(pair);
+            }
+            return result;
         } else return {};
     } else {
         const auto v = vertices(dgGraph).first[-idx-1];
@@ -336,7 +346,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     double tau = -1;
     for(const auto v: m.getNonZeroPlaces()) {
         const int amount = m.getMarking()[m.getNet().getPlace(v)];
-        const double g = std::max(1, gs[m.getNet().getPlace(v).getId()]);
+        const double g = std::max(1.0, gs[m.getNet().getPlace(v).getId()]);
 
         double sampleMean = sampleMeans(m.getNet().getPlace(v).getId());
         double sampleVariance = sampleVariances(m.getNet().getPlace(v).getId());
