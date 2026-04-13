@@ -50,6 +50,24 @@ private:
     std::vector<double> cachedInputRates, cachedRates;
 };
 
+struct DrawMassActionEulerMaruyamaFunction {
+    DrawMassActionEulerMaruyamaFunction(const lib::DG::Hyper &dg,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+        double tau);
+    void syncSize();
+    std::tuple<Action, double, bool> draw(const Marking &m);
+private:
+    std::tuple<Action, double, bool> draw_v0(const Marking &m);
+private:
+    const lib::DG::Hyper &dg;
+    const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
+            inputRate, reactionRate, outputRate;
+    const double tau;
+    std::vector<double> cachedInputRates, cachedRates;
+};
+
 struct Simulator {
 public:
 	int getIteration() const { return iteration; }
