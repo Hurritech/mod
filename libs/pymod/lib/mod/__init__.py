@@ -1254,6 +1254,23 @@ class _Simulator:
             return causality.Simulator.DrawMassActionTauLeaping.Function(dg,
                 self.inputRate, self.reactionRate, self.outputRate, self.dc, self.epsilon)
 
+    class DrawMassActionEulerMaruyama:
+        def __init__(self, *,
+                inputRate: 	  Union[None, Callable[[DG.Vertex],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                reactionRate: Union[None, Callable[[DG.HyperEdge],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                outputRate:   Union[None, Callable[[DG.Vertex],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                tau:          float = 0.01) -> None:  # timestep of the simulation
+            self.inputRate = inputRate
+            self.reactionRate = reactionRate
+            self.outputRate = outputRate
+            self.tau = tau
+
+        def __call__(self, dg: DG) -> "causality.Simulator.DrawMassActionEulerMaruyamaFunction":
+            return causality.Simulator.DrawMassActionEulerMaruyama.Function(dg,
+                self.inputRate, self.reactionRate, self.outputRate, self.tau)
 
     def __init__(self, *,
             labelSettings: LabelSettings = LabelSettings(
@@ -1431,6 +1448,7 @@ causality.Simulator = _Simulator  # type: ignore
 
 causality.Simulator.DrawMassAction.Function = causality._DrawMassActionFunction  # type: ignore
 causality.Simulator.DrawMassActionTauLeaping.Function = causality._DrawMassActionTauLeapingFunction
+causality.Simulator.DrawMassActionEulerMaruyama.Function = causality._DrawMassActionEulerMaruyamaFunction
 
 _DrawMassActionFunction__init__orig = causality.Simulator.DrawMassAction.Function.__init__  # type: ignore
 def _DrawMassActionFunction__init__(self: causality.Simulator.DrawMassAction.Function,  # type: ignore
@@ -1463,6 +1481,22 @@ def _DrawMassActionTauLeapingFunction__init__(self: causality.Simulator.DrawMass
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
     return _DrawMassActionTauLeapingFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, dc, epsilon)
 causality.Simulator.DrawMassActionTauLeaping.Function.__init__ = _DrawMassActionTauLeapingFunction__init__
+
+_DrawMassActionEulerMaruyamaFunction__init__orig = causality.Simulator.DrawMassActionEulerMaruyama.Function.__init__
+def _DrawMassActionEulerMaruyamaFunction__init__(self: causality.Simulator.DrawMassActionEulerMaruyama.Function,
+            dg: DG,
+            inputRate:    Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]],
+            reactionRate: Union[None, Callable[[DG.HyperEdge],
+                Tuple[float, bool]], Tuple[float, bool]],
+            outputRate: Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]],
+            tau: float) -> None:
+    inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
+    reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
+    outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
+    return _DrawMassActionEulerMaruyamaFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau)
+causality.Simulator.DrawMassActionEulerMaruyama.Function.__init__ = _DrawMassActionEulerMaruyamaFunction__init__
 
 
 ###########################################################

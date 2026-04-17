@@ -31,6 +31,19 @@ DrawMassActionTauLeapingFunction_ctor(std::shared_ptr<dg::DG> dg_,
 	                                                dc, epsilon);
 }
 
+std::shared_ptr<DrawMassActionEulerMaruyamaFunction>
+DrawMassActionEulerMaruyamaFunction_ctor(std::shared_ptr<dg::DG> dg_,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
+                            double tau) {
+	return std::make_shared<DrawMassActionEulerMaruyamaFunction>(dg_,
+	                                                toStdFunction(inputRate),
+	                                                toStdFunction(reactionRate),
+	                                                toStdFunction(outputRate),
+	                                                tau);
+}
+
 std::shared_ptr<SimulatorImpl>
 SimulatorImpl_ctor() {
 	return std::make_shared<SimulatorImpl>();
@@ -254,6 +267,12 @@ void Stochsim_doExport() {
 			.def("__init__", py::make_constructor(&DrawMassActionTauLeapingFunction_ctor))
 			.def("syncSize", &DrawMassActionTauLeapingFunction::syncSize)
 			.def("draw", &DrawMassActionTauLeapingFunction::draw);
+
+	// TODO Add rst
+	py::class_<DrawMassActionEulerMaruyamaFunction>("_DrawMassActionEulerMaruyamaFunction", py::no_init)
+	        .def("__init__", py::make_constructor(&DrawMassActionEulerMaruyamaFunction_ctor))
+	        .def("syncSize", &DrawMassActionEulerMaruyamaFunction::syncSize)
+	        .def("draw", &DrawMassActionEulerMaruyamaFunction::draw);
 
 	// rst:
 	// rst: .. class:: causality.DrawFunction

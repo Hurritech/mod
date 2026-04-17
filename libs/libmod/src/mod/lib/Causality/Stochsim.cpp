@@ -463,6 +463,33 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 
 // ==============================================================================================
 
+DrawMassActionEulerMaruyamaFunction::DrawMassActionEulerMaruyamaFunction(
+		const lib::DG::Hyper &dg,
+		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+		double tau)
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau) {
+	syncSize();
+}
+
+void DrawMassActionEulerMaruyamaFunction::syncSize() {
+	const auto &g = dg.getGraph();
+	const auto n = num_vertices(g);
+	cachedInputRates.resize(n, -1.0);
+	cachedRates.resize(n, -1.0);
+}
+
+std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw(const Marking &m) {
+	return draw_v0(m);
+}
+
+std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(const Marking &m) {
+    return {{}, 0.0, false};
+}
+
+// ==============================================================================================
+
 void Simulator::doIteration() {
 	++iteration;
 }
