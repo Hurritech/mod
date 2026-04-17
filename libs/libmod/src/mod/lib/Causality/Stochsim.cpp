@@ -263,7 +263,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw(const Ma
 }
 
 std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const Marking &m) {
-	constexpr bool VERBOSE = false;
+	constexpr bool VERBOSE = true;
 
 	if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ":" << std::endl;
 
@@ -285,8 +285,6 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 		}
 	}
 
-    // stoichiometric matrix for the non-critical reactions
-	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), 0);
 	// idx of the non-critical reactions
 	std::vector<int> nonCriticalReactions;
 	// propensities for the non-critical reactions
@@ -295,8 +293,9 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     std::vector<int> criticalReactions;
     // propensities for the critical reactions
     std::vector<double> criticalPropensities;
+    // temporary buffer for the stoichiometric matrix
+    std::vector<boost::numeric::ublas::vector<int>> nonCriticalStoichiometries;
 
-    int notCriticalReaction = 0; // enumerates the non-critical reactions
     for(const auto &[idx, propensity] : propensities) {
         // check if the current reactions is critical i.e. if it fully consumes a reactant in less than dc firings
         bool critical = false;
@@ -314,29 +313,34 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	        criticalPropensities.emplace_back(propensity);
 	    } else {
 	        // compute the stoichiometry for the current reaction
-	        stoichiometric.resize(m.getNet().getNet().numPlaces(), notCriticalReaction+1, true);
-	        boost::numeric::ublas::vector<int> deltas(stoichiometric.size1(), 0);
+	        boost::numeric::ublas::vector<int> deltas(m.getNet().getNet().numPlaces(), 0);
 	        for(const auto &[place, w] : consumed(dg, m, idx))
                 deltas(place.getId()) -= w;
             for(const auto &[place, w] : produced(dg, m, idx))
                 deltas(place.getId()) += w;
-            for(unsigned i = 0; i < deltas.size(); i++)
-                if(deltas(i) != 0)
-                    stoichiometric(i, notCriticalReaction) = static_cast<double>(deltas(i));
 
             nonCriticalReactions.emplace_back(idx);
-            nonCriticalPropensities.resize(notCriticalReaction+1, true);
-            nonCriticalPropensities(notCriticalReaction) = propensity;
-
-            notCriticalReaction++;
+            nonCriticalStoichiometries.emplace_back(std::move(deltas));
+            nonCriticalPropensities.resize(nonCriticalReactions.size(), true);
+            nonCriticalPropensities(nonCriticalReactions.size() - 1) = propensity;
 	    }
     }
 
+    // stoichiometric matrix for the non-critical reactions
+	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), nonCriticalReactions.size());
+
+    for(std::size_t reaction = 0; reaction < nonCriticalStoichiometries.size(); ++reaction) {
+        const auto &reactionDeltas = nonCriticalStoichiometries[reaction];
+        for(unsigned i = 0; i < reactionDeltas.size(); ++i)
+            if(reactionDeltas(i) != 0)
+                stoichiometric(i, reaction) = static_cast<double>(reactionDeltas(i));
+    }
+
     if(VERBOSE) {
-		std::cout << __func__ << ":" << __LINE__ << ": critical reactions:" << std::endl;
-		std::cout << __func__ << ":" << __LINE__ << ":";
+		std::cout << __func__ << ":" << __LINE__ << ": critical reactions:";
 		for(int i = 0; i != criticalReactions.size(); ++i)
-			std::cout << " " << criticalReactions[i] << std::endl;
+			std::cout << " " << criticalReactions[i];
+	    std::cout << std::endl;
 	}
 
     // compute the highest multiplicity of a reactant of a non-critical reaction for each species
@@ -411,7 +415,10 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
         const double rnd = dist(rng);
         const auto pos = std::lower_bound(accPropensities.begin(), accPropensities.end(), rnd);
         const auto i = pos - accPropensities.begin();
-        if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ": rnd=" << rnd << " i=" << i << std::endl;
+        if(VERBOSE) {
+            std::cout << __func__ << ":" << __LINE__ << ": rnd=" << rnd << " i=" << i << std::endl;
+            std::cout << __func__ << ":" << __LINE__ << ": critical reaction fired: " << criticalReactions[i] << std::endl;
+        }
         auto actId = criticalReactions[i];
 
 	    for(const auto &[place, w] : consumed(dg, m, actId))
@@ -427,7 +434,19 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
         auto &rng = mod::lib::getRng();
 	    firings(reaction) = dist(rng);
     }
-    deltas += boost::numeric::ublas::prod(stoichiometric, firings);
+    if(VERBOSE) {
+        std::cout << __func__ << ":" << __LINE__ << ": non-critical reactions firings:" << std::endl;
+        for(int i = 0; i != nonCriticalReactions.size(); ++i)
+			std::cout << __func__ << ":" << __LINE__ << ": " << nonCriticalReactions[i] << " " << firings(i) << std::endl;
+    }
+    boost::numeric::ublas::vector<double> nonCriticalDeltas = boost::numeric::ublas::prod(stoichiometric, firings);
+    deltas += nonCriticalDeltas;
+    if(VERBOSE) {
+        std::cout << __func__ << ":" << __LINE__ << ": deltas:";
+        for(int i = 0; i != m.getNet().getNet().numPlaces(); ++i)
+			std::cout << " " << deltas(i);
+	    std::cout << std::endl;
+    }
 
     // construct an UpdateAction from the deltas
     std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
