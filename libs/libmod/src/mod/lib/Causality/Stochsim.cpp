@@ -401,30 +401,30 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     else
         timeTillCriticalReaction = -1;
 
-    if(VERBOSE) {
-        std::cout << __func__ << ":" << __LINE__ << ": time till next critical reactions = " << timeTillCriticalReaction << std::endl;
-    }
+	if(VERBOSE) {
+		std::cout << __func__ << ":" << __LINE__ << ": time till next critical reactions = " << timeTillCriticalReaction << std::endl;
+	}
 
-    // fire the next critical reaction if it happens withing the tau-interval
-    boost::numeric::ublas::vector<double> deltas(m.getNet().getNet().numPlaces(), 0.0);
+	// fire the next critical reaction if it happens withing the tau-interval
+	boost::numeric::ublas::vector<double> deltas(m.getNet().getNet().numPlaces(), 0.0);
 	if(timeTillCriticalReaction != -1 && (tau == -1 || timeTillCriticalReaction < tau)) {
-        tau = timeTillCriticalReaction;
+		tau = timeTillCriticalReaction;
 
-        std::uniform_real_distribution<> dist(0, accPropensities.back());
-        auto &rng = mod::lib::getRng();
-        const double rnd = dist(rng);
-        const auto pos = std::lower_bound(accPropensities.begin(), accPropensities.end(), rnd);
-        const auto i = pos - accPropensities.begin();
-        if(VERBOSE) {
-            std::cout << __func__ << ":" << __LINE__ << ": rnd=" << rnd << " i=" << i << std::endl;
-            std::cout << __func__ << ":" << __LINE__ << ": critical reaction fired: " << criticalReactions[i] << std::endl;
-        }
-        auto actId = criticalReactions[i];
+		std::uniform_real_distribution<> dist(0, accPropensities.back());
+		auto &rng = mod::lib::getRng();
+		const double rnd = dist(rng);
+		const auto pos = std::lower_bound(accPropensities.begin(), accPropensities.end(), rnd);
+		const auto i = pos - accPropensities.begin();
+		if(VERBOSE) {
+			std::cout << __func__ << ":" << __LINE__ << ": rnd=" << rnd << " i=" << i << std::endl;
+			std::cout << __func__ << ":" << __LINE__ << ": critical reaction fired: " << criticalReactions[i] << std::endl;
+		}
+		auto actId = criticalReactions[i];
 
-	    for(const auto &[place, w] : consumed(dg, m, actId))
-            deltas(place.getId()) -= static_cast<double>(w);
-        for(const auto &[place, w] : produced(dg, m, actId))
-            deltas(place.getId()) += static_cast<double>(w);
+		for(const auto &[place, w] : consumed(dg, m, actId))
+			deltas(place.getId()) -= static_cast<double>(w);
+		for(const auto &[place, w] : produced(dg, m, actId))
+			deltas(place.getId()) += static_cast<double>(w);
 	}
 
     // compute the expected number of firings for any non-critical reaction
@@ -432,7 +432,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     for(unsigned reaction = 0; reaction < nonCriticalPropensities.size(); reaction++) {
         std::poisson_distribution<> dist(nonCriticalPropensities(reaction) * tau);
         auto &rng = mod::lib::getRng();
-	    firings(reaction) = dist(rng);
+    	firings(reaction) = dist(rng);
     }
     if(VERBOSE) {
         std::cout << __func__ << ":" << __LINE__ << ": non-critical reactions firings:" << std::endl;
@@ -445,16 +445,16 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
         std::cout << __func__ << ":" << __LINE__ << ": deltas:";
         for(int i = 0; i != m.getNet().getNet().numPlaces(); ++i)
 			std::cout << " " << deltas(i);
-	    std::cout << std::endl;
+    	std::cout << std::endl;
     }
 
     // construct an UpdateAction from the deltas
     std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
     for(const auto v: asRange(vertices(dgGraph))) {
         if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
-            const auto place = m.getNet().getPlace(v);
-            const int delta = std::lround(deltas(place.getId()));
-            if(delta != 0) updates.emplace_back(v, delta);
+			const auto place = m.getNet().getPlace(v);
+			const int delta = std::lround(deltas(place.getId()));
+			if(delta != 0) updates.emplace_back(v, delta);
         }
     }
     Action action = UpdateAction{std::move(updates)};
@@ -464,11 +464,11 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 // ==============================================================================================
 
 DrawMassActionEulerMaruyamaFunction::DrawMassActionEulerMaruyamaFunction(
-		const lib::DG::Hyper &dg,
-		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
-		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
-		std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-		double tau)
+	const lib::DG::Hyper &dg,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+	double tau)
 	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau) {
 	syncSize();
 }
@@ -485,7 +485,56 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw(const
 }
 
 std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(const Marking &m) {
-    return {{}, 0.0, false};
+	const auto &dgGraph = dg.getGraph();
+	auto tmpPropensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
+														 cachedInputRates, cachedRates);
+
+	if(propensities.empty())
+		return {{}, 0.0, false};
+
+	// idx of the reactions
+	std::vector<int> reactions;
+	// propensities of the reactions
+	boost::numeric::ublas::vector<double> propensities(tmpPropensities.size());
+	// stoichiometric matrix for the non-critical reactions
+	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), tmpPropensities.size());
+
+	int reaction = 0;
+	for(const auto &[idx, propensity] : propensities) {
+		for(const auto &[place, w] : consumed(dg, m, idx))
+			stoichiometric(place.getId(), reaction) -= w;
+		for(const auto &[place, w] : produced(dg, m, idx))
+			stoichiometric(place.getId(), reaction) += w;
+
+		reactions.emplace_back(idx);
+		propensities(reaction) = propensity;
+		reaction++;
+	}
+
+	boost::numeric::ublas::vector<double> drift = boost::numeric::ublas::prod(stoichiometric, propensities);
+
+	boost::numeric::ublas::vector<double> wienerIncrement(propensities.size());
+	for(int i = 0; i < wienerIncrement.size(); i++) {
+		std::uniform_real_distribution<> dist(0, 1);
+		auto &rng = mod::lib::getRng();
+		const double rnd = dist(rng);
+		wienerIncrement(i) = std::sqrt(propensities(i)) * rnd;
+	}
+	boost::numeric::ublas::vector<double> diffussion = boost::numeric::ublas::prod(stoichiometric, wienerIncrement);
+
+	boost::numeric::ublas::vector<double> deltas = tau * drift + std::sqrt(tau) * diffussion;
+
+	// construct an UpdateAction from the deltas
+	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+	for(const auto v: asRange(vertices(dgGraph))) {
+		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+			const auto place = m.getNet().getPlace(v);
+			const int delta = std::lround(deltas(place.getId()));
+			if(delta != 0) updates.emplace_back(v, delta);
+		}
+	}
+	Action action = UpdateAction{std::move(updates)};
+	return {action, tau, true};
 }
 
 // ==============================================================================================
