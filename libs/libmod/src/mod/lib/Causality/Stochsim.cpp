@@ -303,13 +303,16 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	SKIP
 
 	// idx of the non-critical reactions
-	std::vector<int> nonCriticalReactions;
+	// std::vector<int> nonCriticalReactions;
+	nonCriticalPropensities.clear();
 	// propensities for the non-critical reactions
 	boost::numeric::ublas::vector<double> nonCriticalPropensities;
 	// idx of the critical reactions
-    std::vector<int> criticalReactions;
+    // std::vector<int> criticalReactions;
+    criticalReactions.clear();
     // propensities for the critical reactions
-    std::vector<double> criticalPropensities;
+    // std::vector<double> criticalPropensities;
+    criticalPropensities.clear();
     // temporary buffer for the stoichiometric matrix
     std::vector<boost::numeric::ublas::vector<int>> nonCriticalStoichiometries;
 
@@ -409,7 +412,8 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     SKIP
 
     // compute time till the next criticalReaction
-    std::vector<double> accPropensities(criticalPropensities.size());
+    // std::vector<double> accPropensities(criticalPropensities.size());
+    accPropensities.reserve(criticalPropensities.size());
 	{
 		// TODO: when GCC 8 can be dropped, change to the commented code
 		//		std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
