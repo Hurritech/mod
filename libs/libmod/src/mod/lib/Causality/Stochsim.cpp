@@ -11,9 +11,18 @@
 #include <algorithm>
 #include <iostream>
 #include <cmath>
+#include <ctime>
+
+#define TIMER c_end = std::clock();\
+    timings[counter++] += c_end - c_start;\
+    c_start = c_end;
+#define SKIP c_start = std::clock();
 
 namespace mod::lib::Causality {
 namespace {
+
+static double timings[10] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
+static int iteration = 0;
 
 using PropensityEntry = std::pair<int, double>;
 
@@ -263,6 +272,10 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw(const Ma
 }
 
 std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const Marking &m) {
+    std::clock_t c_start = std::clock();
+    std::clock_t c_end;
+    int counter = 0;
+
 	constexpr bool VERBOSE = true;
 
 	if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ":" << std::endl;
@@ -270,6 +283,8 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	const auto &dgGraph = dg.getGraph();
 	auto propensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
 	                                        cachedInputRates, cachedRates);
+
+    TIMER
 
 	if(propensities.empty()) {
 		if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ": no actions" << std::endl;
@@ -284,6 +299,8 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 					<< " " << propensities[i].second << std::endl;
 		}
 	}
+
+	SKIP
 
 	// idx of the non-critical reactions
 	std::vector<int> nonCriticalReactions;
@@ -326,6 +343,8 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	    }
     }
 
+    TIMER
+
     // stoichiometric matrix for the non-critical reactions
 	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), nonCriticalReactions.size());
 
@@ -336,12 +355,16 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
                 stoichiometric(i, reaction) = static_cast<double>(reactionDeltas(i));
     }
 
+    TIMER
+
     if(VERBOSE) {
 		std::cout << __func__ << ":" << __LINE__ << ": critical reactions:";
 		for(int i = 0; i != criticalReactions.size(); ++i)
 			std::cout << " " << criticalReactions[i];
 	    std::cout << std::endl;
 	}
+
+	SKIP
 
     // compute the highest multiplicity of a reactant of a non-critical reaction for each species
 	std::vector<double> gs(stoichiometric.size1());
@@ -354,9 +377,13 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	    }
 	}
 
+	TIMER
+
     // compute the means and variances for the expected firings of any non-critical reaction
 	auto sampleMeans = boost::numeric::ublas::prod(stoichiometric, nonCriticalPropensities);
 	auto sampleVariances = boost::numeric::ublas::prod(boost::numeric::ublas::element_prod(stoichiometric, stoichiometric), nonCriticalPropensities);
+
+    TIMER
 
     // compute the maximum tau for which the leap condition holds on the non-critical reactions
     double tau = -1;
@@ -373,9 +400,13 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
         if(tau == -1 || newTau < tau) tau = newTau;
     }
 
+    TIMER
+
     if(VERBOSE) {
         std::cout << __func__ << ":" << __LINE__ << ": tau for non-critical reactions = " << tau << std::endl;
     }
+
+    SKIP
 
     // compute time till the next criticalReaction
     std::vector<double> accPropensities(criticalPropensities.size());
@@ -401,9 +432,13 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     else
         timeTillCriticalReaction = -1;
 
+    TIMER
+
 	if(VERBOSE) {
 		std::cout << __func__ << ":" << __LINE__ << ": time till next critical reactions = " << timeTillCriticalReaction << std::endl;
 	}
+
+	SKIP
 
 	// fire the next critical reaction if it happens withing the tau-interval
 	boost::numeric::ublas::vector<double> deltas(m.getNet().getNet().numPlaces(), 0.0);
@@ -427,6 +462,8 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 			deltas(place.getId()) += static_cast<double>(w);
 	}
 
+	TIMER
+
     // compute the expected number of firings for any non-critical reaction
     boost::numeric::ublas::vector<double> firings(nonCriticalPropensities.size());
     for(unsigned reaction = 0; reaction < nonCriticalPropensities.size(); reaction++) {
@@ -434,19 +471,30 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
         auto &rng = mod::lib::getRng();
     	firings(reaction) = dist(rng);
     }
+
+    TIMER
+
     if(VERBOSE) {
         std::cout << __func__ << ":" << __LINE__ << ": non-critical reactions firings:" << std::endl;
         for(int i = 0; i != nonCriticalReactions.size(); ++i)
 			std::cout << __func__ << ":" << __LINE__ << ": " << nonCriticalReactions[i] << " " << firings(i) << std::endl;
     }
+
+    SKIP
+
     boost::numeric::ublas::vector<double> nonCriticalDeltas = boost::numeric::ublas::prod(stoichiometric, firings);
     deltas += nonCriticalDeltas;
+
+    TIMER
+
     if(VERBOSE) {
         std::cout << __func__ << ":" << __LINE__ << ": deltas:";
         for(int i = 0; i != m.getNet().getNet().numPlaces(); ++i)
 			std::cout << " " << deltas(i);
     	std::cout << std::endl;
     }
+
+    SKIP
 
     // construct an UpdateAction from the deltas
     std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
@@ -458,6 +506,19 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
         }
     }
     Action action = UpdateAction{std::move(updates)};
+
+    TIMER
+
+    if(iteration++ % 1000 == 0) {
+        std::cout << __func__ << __LINE__ << ":";
+        double sum = 0;
+        for(int i = 0; i < 10; i++)
+            sum += timings[i];
+        for(int i = 0; i < 10; i++)
+            std::cout << " " << timings[i] / sum;
+        std::cout << std::endl;
+    }
+
     return {action, tau, true};
 }
 
