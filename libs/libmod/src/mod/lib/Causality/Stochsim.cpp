@@ -496,7 +496,7 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 	std::vector<int> reactions;
 	// propensities of the reactions
 	boost::numeric::ublas::vector<double> propensities(tmpPropensities.size());
-	// stoichiometric matrix for the non-critical reactions
+	// stoichiometric matrix for the reactions
 	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), tmpPropensities.size());
 
 	int reaction = 0;
