@@ -184,7 +184,7 @@ std::tuple<Action, double, bool> DrawMassActionFunction::draw(const Marking &m) 
 }
 
 std::tuple<Action, double, bool> DrawMassActionFunction::draw_v0(const Marking &m) {
-	constexpr bool VERBOSE = true;
+	constexpr bool VERBOSE = false;
 
 	if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ":" << std::endl;
 
@@ -276,7 +276,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     std::clock_t c_end;
     int counter = 0;
 
-	constexpr bool VERBOSE = true;
+	constexpr bool VERBOSE = false;
 
 	if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ":" << std::endl;
 
