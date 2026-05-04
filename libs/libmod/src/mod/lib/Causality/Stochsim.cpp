@@ -199,18 +199,23 @@ std::tuple<Action, double, bool> DrawMassActionFunction::draw_v0(const Marking &
 
 	std::vector<double> accPropensities(propensities.size());
 	{
-		// TODO: when GCC 8 can be dropped, change to the commented code
-		//		std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
-		//		                    [](double a, std::pair<int, double> b) {
-		//			                    return a + b.second;
-		//		                    }, 0.0);
-		double sum = 0;
-		auto out = accPropensities.begin();
-		for(const auto &p: propensities) {
-			sum += p.second;
-			*out = sum;
-			++out;
-		}
+		#if defined(__GNUC__) && !defined(__clang__)
+            #if __GNUC__ > 8
+				std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
+				                    [](double a, std::pair<int, double> b) {
+					                    return a + b;
+				                    }, 0.0);
+            #else
+                // TODO: when GCC 8 can be dropped, remove this
+                double sum = 0;
+                auto out = accPropensities.begin();
+                for(const auto &p: criticalPropensities) {
+                    sum += p;
+                    *out = sum;
+                    ++out;
+                }
+            #endif
+        #endif
 	}
 
 	if(VERBOSE) {
@@ -415,18 +420,23 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     // std::vector<double> accPropensities(criticalPropensities.size());
     accPropensities.reserve(criticalPropensities.size());
 	{
-		// TODO: when GCC 8 can be dropped, change to the commented code
-		//		std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
-		//		                    [](double a, std::pair<int, double> b) {
-		//			                    return a + b;
-		//		                    }, 0.0);
-		double sum = 0;
-		auto out = accPropensities.begin();
-		for(const auto &p: criticalPropensities) {
-			sum += p;
-			*out = sum;
-			++out;
-		}
+	    #if defined(__GNUC__) && !defined(__clang__)
+            #if __GNUC__ > 8
+				std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
+				                    [](double a, std::pair<int, double> b) {
+					                    return a + b;
+				                    }, 0.0);
+            #else
+                // TODO: when GCC 8 can be dropped, remove this
+                double sum = 0;
+                auto out = accPropensities.begin();
+                for(const auto &p: criticalPropensities) {
+                    sum += p;
+                    *out = sum;
+                    ++out;
+                }
+            #endif
+        #endif
 	}
 	std::uniform_real_distribution<> dist(0,1);
 	auto &rng = mod::lib::getRng();
