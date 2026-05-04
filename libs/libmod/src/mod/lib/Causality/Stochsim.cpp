@@ -539,6 +539,179 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 
 // ==============================================================================================
 
+DrawMassActionSKRockFunction::DrawMassActionSKRockFunction(
+	const lib::DG::Hyper &dg,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+	double tau,
+	int stages)
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau) {
+	syncSize();
+}
+
+void DrawMassActionSKRockFunction::syncSize() {
+	const auto &g = dg.getGraph();
+	const auto n = num_vertices(g);
+	cachedInputRates.resize(n, -1.0);
+	cachedRates.resize(n, -1.0);
+}
+
+std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw(const Marking &m) {
+	return draw_v0(m);
+}
+
+// TODO: change this to use the given species
+double DrawMassActionSKRockFunction::reactionPropensityAt(
+    lib::DG::HyperVertex e,
+    boost::numeric::ublas::vector<double> species) {
+	const petri::Transition t = m.getNet().getTransition(e);
+	const auto &marking = m.getMarking();
+	assert(marking.isEnabled(t));
+	const auto &net = m.getNet().getNet();
+	const auto &g = net.getGraph();
+	const auto vt = net.vertexFromTransition(t);
+	double res = 1.0;
+	for(const auto eIn: asRange(in_edges(vt, g))) {
+		const auto vIn = source(eIn, g);
+		assert(g[vIn].kind == petri::Net::Kind::Place);
+		const int c = marking[net.placeFromVertex(vIn)];
+		const int w = g[eIn];
+		switch(w) {
+		case 1:
+			res *= c;
+			break;
+		case 2:
+			res *= c * (c - 1) / 2;
+			break;
+		default:
+			res *= boost::math::binomial_coefficient<double>(c, w);
+			break;
+		}
+	}
+	return res;
+}
+
+// TODO: change this to use the given species
+boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensitiesAt(
+    boost::numeric::ublas::vector<double> species) {
+    const auto &dgGraph = dg.getGraph();
+
+	std::vector<PropensityEntry> propensities; // .first: non-negative==reaction/output, negative: -input - 1
+	propensities.reserve(num_vertices(dgGraph));
+
+	for(const auto e: m.getAllEnabled()) {
+		const auto idx = get(boost::vertex_index_t(), dgGraph, e);
+		assert(idx < cachedRates.size());
+		double r = cachedRates[idx];
+		if(r < 0) {
+			if(reactionRate) {
+				bool cache;
+				std::tie(r, cache) = reactionRate(dg, e);
+				assert(r >= 0);
+				if(cache) cachedRates[idx] = r;
+			} else {
+				cachedRates[idx] = r = 1.0;
+			}
+		}
+		if(r != 0) propensities.emplace_back(idx, r * reactionPropensityAt(e, species));
+	}
+	for(const auto v: m.getNonZeroPlaces()) {
+		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
+		assert(idx < cachedRates.size());
+		double r = cachedRates[idx];
+		if(r < 0) {
+			if(outputRate) {
+				bool cache;
+				std::tie(r, cache) = outputRate(dg, v);
+				assert(r >= 0);
+				if(cache) cachedRates[idx] = r;
+			} else {
+				cachedRates[idx] = r = 0.0;
+			}
+		}
+		if(r != 0) propensities.emplace_back(idx, r * m.getMarking()[m.getNet().getPlace(v)]);
+	}
+	for(const auto v: asRange(vertices(dgGraph))) {
+		if(dgGraph[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
+		assert(idx < cachedInputRates.size());
+		double r = cachedInputRates[idx];
+		if(r < 0) {
+			if(inputRate) {
+				bool cache;
+				std::tie(r, cache) = inputRate(dg, v);
+				assert(r >= 0);
+				if(cache) cachedInputRates[idx] = r;
+			} else {
+				cachedInputRates[idx] = r = 0.0;
+			}
+		}
+		if(r != 0) propensities.emplace_back(-idx - 1, r);
+	}
+
+	return propensities;
+}
+
+std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Marking &m) {
+    const auto &dgGraph = dg.getGraph();
+	auto tmpPropensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
+														 cachedInputRates, cachedRates);
+
+	if(propensities.empty())
+		return {{}, 0.0, false};
+
+	// idx of the reactions
+	std::vector<int> reactions;
+	// propensities of the reactions
+	boost::numeric::ublas::vector<double> propensities(tmpPropensities.size());
+	// stoichiometric matrix for the reactions
+	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), tmpPropensities.size());
+
+	int reaction = 0;
+	for(const auto &[idx, propensity] : propensities) {
+		for(const auto &[place, w] : consumed(dg, m, idx))
+			stoichiometric(place.getId(), reaction) -= w;
+		for(const auto &[place, w] : produced(dg, m, idx))
+			stoichiometric(place.getId(), reaction) += w;
+
+		reactions.emplace_back(idx);
+		propensities(reaction) = propensity;
+		reaction++;
+	}
+
+    double nu = 0.05;
+    double omega0 = 1 + nu / (static_cast<double>(stages) * static_cast<double>(stages));
+
+    // precompute the values of the chebyshev polynomials evaluated at omega0
+    std::vector<double> chebyshev(stages+1);
+    chebyshev.emplace_back(1);
+    chebyshev.emplace_back(omega0);
+    for(int i = 2; i <= stages; i++)
+        chebyshev.emplace_back(2*omega0*chebyshev[i-1]-chebyshev[i-2]);
+
+    // precompute the values of the derivatives of the chebyshev polynomials evaluated at omega0
+    std::vector<double> dchebyshev(stages+1);
+    dchebyshev.emplace_back(0);
+    dchebyshev.emplace_back(1);
+    for(int i = 2; i <= stages; i++)
+        chebyshev.emplace_back(2*omega0*dchebyshev[i-1]+2*chebyshev[i-1]-dchebyshev[i-2]);
+
+	double omega1 = chebyshev[stages] / dchebyshev[stages];
+
+	std::vector<double> mus(stages), nus(stages), kappas(stages);
+	mus.emplace_back(omega1 / omega0);
+	nus.emplace_back(static_cast<double>(stages) * omega1 / 2);
+	for(int i = 2; i <= stages; i++) {
+		mus.emplace_back(2 * omega1 * chebyshev[i-1] / chebyshev[i]);
+		nus.emplace_back(2 * omega0 * chebyshev[i-1] / chebyshev[i]);
+	}
+
+	return {{}, 0.0, false};
+}
+
+// ==============================================================================================
+
 void Simulator::doIteration() {
 	++iteration;
 }
