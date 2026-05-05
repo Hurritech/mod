@@ -13,16 +13,45 @@
 #include <cmath>
 #include <ctime>
 
-#define TIMER c_end = std::clock();\
-    timings[counter++] += c_end - c_start;\
-    c_start = c_end;
-#define SKIP c_start = std::clock();
+#define USE_TIMER
+
+#ifdef USE_TIMER
+    #define INIT_TIMER do {\
+            std::clock_t c_start = std::clock();\
+            std::clock_t c_end;\
+            int counter = 0;\
+        } while(0)
+    #define TIMER do {\
+            c_end = std::clock();\
+            timings[counter++] += c_end - c_start;\
+            c_start = std::clock();\
+        } while(0)
+    #define SKIP do { c_start = std::clock(); } while(0)
+    #define PRINT_TIMINGS do {\
+            if(iteration++ % 1000 == 0) {\
+                std::cout << __func__ << __LINE__ << ":";\
+                double sum = 0;\
+                for(int i = 0; i < 12; i++)\
+                    sum += timings[i];\
+                for(int i = 0; i < 12; i++)\
+                    std::cout << " " << timings[i] / sum;\
+                std::cout << std::endl;\
+            }\
+        } while(0)
+#else
+    #define INIT_TIMER do { } while(0)
+    #define TIMER do { } while(0)
+    #define SKIP do { } while(0)
+    #define PRINT_TIMINGS do { } while(0)
+#endif
 
 namespace mod::lib::Causality {
 namespace {
 
-static double timings[11] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
-static int iteration = 0;
+#ifdef USE_TIMER
+    static double timings[12] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
+    static int iteration = 0;
+#endif
 
 using PropensityEntry = std::pair<int, double>;
 
@@ -277,9 +306,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw(const Ma
 }
 
 std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const Marking &m) {
-    std::clock_t c_start = std::clock();
-    std::clock_t c_end;
-    int counter = 0;
+    INIT_TIMER
 
 	constexpr bool VERBOSE = false;
 
@@ -289,7 +316,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	auto propensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
 	                                        cachedInputRates, cachedRates);
 
-    TIMER // took 0.193168
+    TIMER
 
 	if(propensities.empty()) {
 		if(VERBOSE) std::cout << __func__ << ":" << __LINE__ << ": no actions" << std::endl;
@@ -321,6 +348,8 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     // temporary buffer for the stoichiometric matrix
     std::vector<boost::numeric::ublas::vector<int>> nonCriticalStoichiometries;
 
+    TIMER
+
     for(const auto &[idx, propensity] : propensities) {
         // check if the current reactions is critical i.e. if it fully consumes a reactant in less than dc firings
         bool critical = false;
@@ -351,7 +380,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	    }
     }
 
-    TIMER // took 0.23843
+    TIMER
 
     // stoichiometric matrix for the non-critical reactions
 	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), nonCriticalReactions.size());
@@ -363,7 +392,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
                 stoichiometric(i, reaction) = static_cast<double>(reactionDeltas(i));
     }
 
-    TIMER // took 0.0906652
+    TIMER
 
     if(VERBOSE) {
 		std::cout << __func__ << ":" << __LINE__ << ": critical reactions:";
@@ -385,13 +414,13 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 	    }
 	}
 
-	TIMER // took 0.0706695
+	TIMER
 
     // compute the means and variances for the expected firings of any non-critical reaction
 	auto sampleMeans = boost::numeric::ublas::prod(stoichiometric, nonCriticalPropensities);
 	auto sampleVariances = boost::numeric::ublas::prod(boost::numeric::ublas::element_prod(stoichiometric, stoichiometric), nonCriticalPropensities);
 
-    TIMER // took 0.0195726
+    TIMER
 
     // compute the maximum tau for which the leap condition holds on the non-critical reactions
     double tau = -1;
@@ -408,7 +437,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
         if(tau == -1 || newTau < tau) tau = newTau;
     }
 
-    TIMER // took 0.214891
+    TIMER
 
     if(VERBOSE) {
         std::cout << __func__ << ":" << __LINE__ << ": tau for non-critical reactions = " << tau << std::endl;
@@ -446,7 +475,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     else
         timeTillCriticalReaction = -1;
 
-    TIMER // took 0.0271388
+    TIMER
 
 	if(VERBOSE) {
 		std::cout << __func__ << ":" << __LINE__ << ": time till next critical reactions = " << timeTillCriticalReaction << std::endl;
@@ -476,7 +505,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 			deltas(place.getId()) += static_cast<double>(w);
 	}
 
-	TIMER // took 0.0249934
+	TIMER
 
     // compute the expected number of firings for any non-critical reaction
     boost::numeric::ublas::vector<double> firings(nonCriticalPropensities.size());
@@ -486,7 +515,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     	firings(reaction) = dist(rng);
     }
 
-    TIMER // took 0.048832
+    TIMER
 
     if(VERBOSE) {
         std::cout << __func__ << ":" << __LINE__ << ": non-critical reactions firings:" << std::endl;
@@ -499,7 +528,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     boost::numeric::ublas::vector<double> nonCriticalDeltas = boost::numeric::ublas::prod(stoichiometric, firings);
     deltas += nonCriticalDeltas;
 
-    TIMER // took 0.0716401
+    TIMER
 
     if(VERBOSE) {
         std::cout << __func__ << ":" << __LINE__ << ": deltas:";
@@ -521,17 +550,9 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
     }
     Action action = UpdateAction{std::move(updates)};
 
-    TIMER // took ?
+    TIMER
 
-    if(iteration++ % 1000 == 0) {
-        std::cout << __func__ << __LINE__ << ":";
-        double sum = 0;
-        for(int i = 0; i < 10; i++)
-            sum += timings[i];
-        for(int i = 0; i < 10; i++)
-            std::cout << " " << timings[i] / sum;
-        std::cout << std::endl;
-    }
+    PRINT_TIMINGS
 
     return {action, tau, true};
 }
