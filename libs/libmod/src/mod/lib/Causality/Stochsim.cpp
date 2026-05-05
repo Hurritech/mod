@@ -6,7 +6,6 @@
 
 #include <boost/math/special_functions/binomial.hpp>
 #include <boost/numeric/ublas/matrix_sparse.hpp>
-#include <boost/numeric/ublas/vector.hpp>
 
 #include <algorithm>
 #include <iostream>
@@ -16,40 +15,39 @@
 #define USE_TIMER
 
 #ifdef USE_TIMER
-    #define INIT_TIMER do {\
-            std::clock_t c_start = std::clock();\
-            std::clock_t c_end;\
-            int counter = 0;\
-        } while(0)
+    #define INIT_TIMER\
+        std::chrono::steady_clock::time_point c_start = std::chrono::steady_clock::now();\
+        std::chrono::steady_clock::time_point c_end;\
+        int counter = 0;
     #define TIMER do {\
-            c_end = std::clock();\
-            timings[counter++] += c_end - c_start;\
-            c_start = std::clock();\
-        } while(0)
-    #define SKIP do { c_start = std::clock(); } while(0)
+            c_end = std::chrono::steady_clock::now();\
+            timings[counter++] += std::chrono::duration_cast<std::chrono::nanoseconds>(c_end - c_start).count();\
+            c_start = std::chrono::steady_clock::now();\
+        } while(0);
+    #define SKIP do { c_start = std::chrono::steady_clock::now(); } while(0);
     #define PRINT_TIMINGS do {\
             if(iteration++ % 1000 == 0) {\
                 std::cout << __func__ << __LINE__ << ":";\
-                double sum = 0;\
+                long long sum = 0;\
                 for(int i = 0; i < 12; i++)\
                     sum += timings[i];\
                 for(int i = 0; i < 12; i++)\
-                    std::cout << " " << timings[i] / sum;\
+                    std::cout << " " << static_cast<double>(timings[i]) / static_cast<double>(sum);\
                 std::cout << std::endl;\
             }\
-        } while(0)
+        } while(0);
 #else
-    #define INIT_TIMER do { } while(0)
-    #define TIMER do { } while(0)
-    #define SKIP do { } while(0)
-    #define PRINT_TIMINGS do { } while(0)
+    #define INIT_TIMER do { } while(0);
+    #define TIMER do { } while(0);
+    #define SKIP do { } while(0);
+    #define PRINT_TIMINGS do { } while(0);
 #endif
 
 namespace mod::lib::Causality {
 namespace {
 
 #ifdef USE_TIMER
-    static double timings[12] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0};
+    static long long timings[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
     static int iteration = 0;
 #endif
 
@@ -336,7 +334,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 
 	// idx of the non-critical reactions
 	// std::vector<int> nonCriticalReactions;
-	nonCriticalPropensities.clear();
+	nonCriticalReactions.clear();
 	// propensities for the non-critical reactions
 	boost::numeric::ublas::vector<double> nonCriticalPropensities;
 	// idx of the critical reactions
@@ -447,13 +445,13 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
 
     // compute time till the next criticalReaction
     // std::vector<double> accPropensities(criticalPropensities.size());
-    accPropensities.reserve(criticalPropensities.size());
+    accPropensities.resize(criticalPropensities.size());
 	{
 	    #if defined(__GNUC__) && !defined(__clang__)
             #if __GNUC__ > 8
-				std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
-				                    [](double a, std::pair<int, double> b) {
-					                    return a + b.second;
+				std::inclusive_scan(criticalPropensities.begin(), criticalPropensities.end(), accPropensities.begin(),
+				                    [](double a, double b) {
+					                    return a + b;
 				                    }, 0.0);
             #else
                 // TODO: when GCC 8 can be dropped, remove this
@@ -642,7 +640,7 @@ DrawMassActionSKRockFunction::DrawMassActionSKRockFunction(
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
 	double tau,
 	int stages)
-	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau) {
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau), stages(stages) {
 	syncSize();
 }
 
@@ -659,6 +657,7 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw(const Markin
 
 // TODO: change this to use the given species
 double DrawMassActionSKRockFunction::reactionPropensityAt(
+    const Marking &m,
     lib::DG::HyperVertex e,
     boost::numeric::ublas::vector<double> species) {
 	const petri::Transition t = m.getNet().getTransition(e);
@@ -690,6 +689,7 @@ double DrawMassActionSKRockFunction::reactionPropensityAt(
 
 // TODO: change this to use the given species
 boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensitiesAt(
+    const Marking &m,
     boost::numeric::ublas::vector<double> species) {
     const auto &dgGraph = dg.getGraph();
 
@@ -710,7 +710,7 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensities
 				cachedRates[idx] = r = 1.0;
 			}
 		}
-		if(r != 0) propensities.emplace_back(idx, r * reactionPropensityAt(e, species));
+		if(r != 0) propensities.emplace_back(idx, r * reactionPropensityAt(m, e, species));
 	}
 	for(const auto v: m.getNonZeroPlaces()) {
 		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
@@ -746,7 +746,8 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensities
 		if(r != 0) propensities.emplace_back(-idx - 1, r);
 	}
 
-	return propensities;
+    boost::numeric::ublas::vector<double> stub(0);
+	return stub;
 }
 
 std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Marking &m) {
@@ -754,7 +755,7 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
 	auto tmpPropensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
 														 cachedInputRates, cachedRates);
 
-	if(propensities.empty())
+	if(tmpPropensities.empty())
 		return {{}, 0.0, false};
 
 	// idx of the reactions
@@ -765,7 +766,7 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
 	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), tmpPropensities.size());
 
 	int reaction = 0;
-	for(const auto &[idx, propensity] : propensities) {
+	for(const auto &[idx, propensity] : tmpPropensities) {
 		for(const auto &[place, w] : consumed(dg, m, idx))
 			stoichiometric(place.getId(), reaction) -= w;
 		for(const auto &[place, w] : produced(dg, m, idx))

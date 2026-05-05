@@ -3,6 +3,8 @@
 
 #include <mod/lib/Causality/EventTrace.hpp>
 
+#include <boost/numeric/ublas/vector.hpp>
+
 #include <functional>
 #include <tuple>
 
@@ -47,7 +49,7 @@ private:
             inputRate, reactionRate, outputRate;
     const int dc;
     const double epsilon;
-    std::vector<double> cachedInputRates, cachedRates, nonCriticalPropensities, accPropensities;
+    std::vector<double> cachedInputRates, cachedRates, criticalPropensities, accPropensities;
     std::vector<int> nonCriticalReactions, criticalReactions;
 };
 
@@ -78,6 +80,8 @@ struct DrawMassActionSKRockFunction {
     void syncSize();
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
+    double reactionPropensityAt(const Marking &m, lib::DG::HyperVertex, boost::numeric::ublas::vector<double>);
+    boost::numeric::ublas::vector<double> propensitiesAt(const Marking &m, boost::numeric::ublas::vector<double>);
     std::tuple<Action, double, bool> draw_v0(const Marking &m);
 private:
     const lib::DG::Hyper &dg;
