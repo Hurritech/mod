@@ -203,7 +203,7 @@ std::tuple<Action, double, bool> DrawMassActionFunction::draw_v0(const Marking &
             #if __GNUC__ > 8
 				std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
 				                    [](double a, std::pair<int, double> b) {
-					                    return a + b;
+					                    return a + b.second;
 				                    }, 0.0);
             #else
                 // TODO: when GCC 8 can be dropped, remove this
@@ -424,7 +424,7 @@ std::tuple<Action, double, bool> DrawMassActionTauLeapingFunction::draw_v0(const
             #if __GNUC__ > 8
 				std::inclusive_scan(propensities.begin(), propensities.end(), accPropensities.begin(),
 				                    [](double a, std::pair<int, double> b) {
-					                    return a + b;
+					                    return a + b.second;
 				                    }, 0.0);
             #else
                 // TODO: when GCC 8 can be dropped, remove this
@@ -564,7 +564,7 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 	auto tmpPropensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
 														 cachedInputRates, cachedRates);
 
-	if(propensities.empty())
+	if(tmpPropensities.empty())
 		return {{}, 0.0, false};
 
 	// idx of the reactions
@@ -575,7 +575,7 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), tmpPropensities.size());
 
 	int reaction = 0;
-	for(const auto &[idx, propensity] : propensities) {
+	for(const auto &[idx, propensity] : tmpPropensities) {
 		for(const auto &[place, w] : consumed(dg, m, idx))
 			stoichiometric(place.getId(), reaction) -= w;
 		for(const auto &[place, w] : produced(dg, m, idx))
