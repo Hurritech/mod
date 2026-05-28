@@ -609,7 +609,7 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 
 	boost::numeric::ublas::vector<double> wienerIncrement(propensities.size());
 	for(int i = 0; i < wienerIncrement.size(); i++) {
-		std::uniform_real_distribution<> dist(0, 1);
+		std::normal_distribution<> dist(0, 1);
 		auto &rng = mod::lib::getRng();
 		const double rnd = dist(rng);
 		wienerIncrement(i) = std::sqrt(propensities(i)) * rnd;
