@@ -206,6 +206,27 @@ private:
 
 // ==============================================================================================
 
+struct MOD_DECL DrawMassActionSKRockFunction {
+	DrawMassActionSKRockFunction(std::shared_ptr<dg::DG> dg_,
+	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
+	                   std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
+	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
+	                   double tau,
+	                   int stages);
+	~DrawMassActionSKRockFunction();
+	DrawMassActionSKRockFunction(DrawMassActionSKRockFunction &&);
+	DrawMassActionSKRockFunction &operator=(DrawMassActionSKRockFunction &&);
+	DrawMassActionSKRockFunction(const DrawMassActionSKRockFunction &);
+	DrawMassActionSKRockFunction &operator=(const DrawMassActionSKRockFunction &);
+	void syncSize();
+	std::tuple<std::optional<Action>, double, bool> draw(const Marking &m);
+private:
+	struct Pimpl;
+	std::unique_ptr<Pimpl> p;
+};
+
+// ==============================================================================================
+
 struct MOD_DECL SimulatorImpl {
 	SimulatorImpl();
 	~SimulatorImpl();
