@@ -614,9 +614,9 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 		const double rnd = dist(rng);
 		wienerIncrement(i) = std::sqrt(propensities(i)) * rnd;
 	}
-	boost::numeric::ublas::vector<double> diffussion = boost::numeric::ublas::prod(stoichiometric, wienerIncrement);
+	boost::numeric::ublas::vector<double> diffusion = boost::numeric::ublas::prod(stoichiometric, wienerIncrement);
 
-	boost::numeric::ublas::vector<double> deltas = tau * drift + std::sqrt(tau) * diffussion;
+	boost::numeric::ublas::vector<double> deltas = tau * drift + std::sqrt(tau) * diffusion;
 
 	// construct an UpdateAction from the deltas
 	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
@@ -655,14 +655,12 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw(const Markin
 	return draw_v0(m);
 }
 
-// TODO: change this to use the given species
-double DrawMassActionSKRockFunction::reactionPropensityAt(
+double DrawMassActionSKRockFunction::reactionPropensityWithDeltas(
     const Marking &m,
     lib::DG::HyperVertex e,
-    boost::numeric::ublas::vector<double> species) {
+    boost::numeric::ublas::vector<double> deltas) {
 	const petri::Transition t = m.getNet().getTransition(e);
 	const auto &marking = m.getMarking();
-	assert(marking.isEnabled(t));
 	const auto &net = m.getNet().getNet();
 	const auto &g = net.getGraph();
 	const auto vt = net.vertexFromTransition(t);
@@ -670,84 +668,78 @@ double DrawMassActionSKRockFunction::reactionPropensityAt(
 	for(const auto eIn: asRange(in_edges(vt, g))) {
 		const auto vIn = source(eIn, g);
 		assert(g[vIn].kind == petri::Net::Kind::Place);
-		const int c = marking[net.placeFromVertex(vIn)];
+		const auto place = net.placeFromVertex(vIn);
+		const double c = std::max(0.0, static_cast<double>(marking[place]) + deltas(place.getId()));
 		const int w = g[eIn];
-		switch(w) {
-		case 1:
-			res *= c;
-			break;
-		case 2:
-			res *= c * (c - 1) / 2;
-			break;
-		default:
-			res *= boost::math::binomial_coefficient<double>(c, w);
-			break;
-		}
+		for(int i = 0; i < w; ++i)
+			res *= (c - static_cast<double>(i)) / static_cast<double>(i + 1);
 	}
 	return res;
 }
 
-// TODO: change this to use the given species
-boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensitiesAt(
+boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensitiesWithDeltas(
     const Marking &m,
-    boost::numeric::ublas::vector<double> species) {
+    const std::vector<int> &reactions,
+    boost::numeric::ublas::vector<double> deltas) {
     const auto &dgGraph = dg.getGraph();
+    boost::numeric::ublas::vector<double> results(reactions.size(), 0.0);
 
-	std::vector<PropensityEntry> propensities; // .first: non-negative==reaction/output, negative: -input - 1
-	propensities.reserve(num_vertices(dgGraph));
+    for(std::size_t i = 0; i < reactions.size(); i++) {
+        const int idx = reactions[i];
 
-	for(const auto e: m.getAllEnabled()) {
-		const auto idx = get(boost::vertex_index_t(), dgGraph, e);
-		assert(idx < cachedRates.size());
-		double r = cachedRates[idx];
-		if(r < 0) {
-			if(reactionRate) {
-				bool cache;
-				std::tie(r, cache) = reactionRate(dg, e);
-				assert(r >= 0);
-				if(cache) cachedRates[idx] = r;
-			} else {
-				cachedRates[idx] = r = 1.0;
-			}
-		}
-		if(r != 0) propensities.emplace_back(idx, r * reactionPropensityAt(m, e, species));
-	}
-	for(const auto v: m.getNonZeroPlaces()) {
-		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
-		assert(idx < cachedRates.size());
-		double r = cachedRates[idx];
-		if(r < 0) {
-			if(outputRate) {
-				bool cache;
-				std::tie(r, cache) = outputRate(dg, v);
-				assert(r >= 0);
-				if(cache) cachedRates[idx] = r;
-			} else {
-				cachedRates[idx] = r = 0.0;
-			}
-		}
-		if(r != 0) propensities.emplace_back(idx, r * m.getMarking()[m.getNet().getPlace(v)]);
-	}
-	for(const auto v: asRange(vertices(dgGraph))) {
-		if(dgGraph[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
-		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
-		assert(idx < cachedInputRates.size());
-		double r = cachedInputRates[idx];
-		if(r < 0) {
-			if(inputRate) {
-				bool cache;
-				std::tie(r, cache) = inputRate(dg, v);
-				assert(r >= 0);
-				if(cache) cachedInputRates[idx] = r;
-			} else {
-				cachedInputRates[idx] = r = 0.0;
-			}
-		}
-		if(r != 0) propensities.emplace_back(-idx - 1, r);
+        if(idx >= 0) {
+            const auto v = vertices(dgGraph).first[idx];
+
+            double r = cachedRates[idx];
+            if(r < 0) {
+                if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge && reactionRate) {
+                    bool cache;
+                    std::tie(r, cache) = reactionRate(dg, v);
+                    if(cache) cachedRates[idx] = r;
+                } else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex && outputRate) {
+                    bool cache;
+                    std::tie(r, cache) = outputRate(dg, v);
+                    if(cache) cachedRates[idx] = r;
+                } else {
+                    r = dgGraph[v].kind == lib::DG::HyperVertexKind::Edge ? 1.0 : 0.0;
+                    cachedRates[idx] = r;
+                }
+            }
+
+            if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge)
+                results(i) = r * reactionPropensityWithDeltas(m, v, deltas);
+            else {
+                const auto place = m.getNet().getPlace(v);
+                results(i) = r * std::max(0.0, static_cast<double>(m.getMarking()[place]) + deltas(place.getId()));
+            }
+        } else {
+            const auto v = vertices(dgGraph).first[-idx - 1];
+
+            double r = cachedInputRates[-idx - 1];
+            if(r < 0) {
+                if(inputRate) {
+                    bool cache;
+                    std::tie(r, cache) = inputRate(dg, v);
+                    if(cache) cachedInputRates[-idx - 1] = r;
+                } else {
+                    cachedInputRates[-idx - 1] = r = 0.0;
+                }
+            }
+
+            results(i) = r;
+        }
 	}
 
-    boost::numeric::ublas::vector<double> stub(0);
-	return stub;
+	return results;
+}
+
+// computes the function f when considering the deltas from the current marking
+boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::f(
+    const Marking &m,
+    const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
+    const std::vector<int> &reactions,
+    boost::numeric::ublas::vector<double> deltas) {
+    return boost::numeric::ublas::prod(stoichiometric, propensitiesWithDeltas(m, reactions, deltas));
 }
 
 std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Marking &m) {
@@ -756,6 +748,8 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
 														 cachedInputRates, cachedRates);
 
 	if(tmpPropensities.empty())
+		return {{}, 0.0, false};
+	if(stages < 1)
 		return {{}, 0.0, false};
 
 	// idx of the reactions
@@ -777,34 +771,70 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
 		reaction++;
 	}
 
-    double nu = 0.05;
-    double omega0 = 1 + nu / (static_cast<double>(stages) * static_cast<double>(stages));
+    double eta = 0.05;
+    double omega0 = 1 + eta / (static_cast<double>(stages) * static_cast<double>(stages));
 
     // precompute the values of the chebyshev polynomials evaluated at omega0
     std::vector<double> chebyshev(stages+1);
-    chebyshev.emplace_back(1);
-    chebyshev.emplace_back(omega0);
+    chebyshev[0] = 1;
+    chebyshev[1] = omega0;
     for(int i = 2; i <= stages; i++)
-        chebyshev.emplace_back(2*omega0*chebyshev[i-1]-chebyshev[i-2]);
+        chebyshev[i] = 2*omega0*chebyshev[i-1]-chebyshev[i-2];
 
     // precompute the values of the derivatives of the chebyshev polynomials evaluated at omega0
     std::vector<double> dchebyshev(stages+1);
-    dchebyshev.emplace_back(0);
-    dchebyshev.emplace_back(1);
+    dchebyshev[0] = 0;
+    dchebyshev[1] = 1;
     for(int i = 2; i <= stages; i++)
-        chebyshev.emplace_back(2*omega0*dchebyshev[i-1]+2*chebyshev[i-1]-dchebyshev[i-2]);
+        dchebyshev[i] = 2*omega0*dchebyshev[i-1]+2*chebyshev[i-1]-dchebyshev[i-2];
 
 	double omega1 = chebyshev[stages] / dchebyshev[stages];
 
+    // precompute the values for mu, nu and kappa
+    // TODO: optimize kappa away (can be computed from nu)
 	std::vector<double> mus(stages), nus(stages), kappas(stages);
-	mus.emplace_back(omega1 / omega0);
-	nus.emplace_back(static_cast<double>(stages) * omega1 / 2);
+	mus[0] = omega1 / omega0;
+	nus[0] = static_cast<double>(stages) * omega1 / 2;
+    kappas[0] = static_cast<double>(stages) * omega1 / omega0;
 	for(int i = 2; i <= stages; i++) {
-		mus.emplace_back(2 * omega1 * chebyshev[i-1] / chebyshev[i]);
-		nus.emplace_back(2 * omega0 * chebyshev[i-1] / chebyshev[i]);
+		mus[i-1] = 2 * omega1 * chebyshev[i-1] / chebyshev[i];
+		nus[i-1] = 2 * omega0 * chebyshev[i-1] / chebyshev[i];
+		kappas[i-1] = - chebyshev[i-2] / chebyshev[i];
 	}
 
-	return {{}, 0.0, false};
+	// compute the diffusion term Q
+	boost::numeric::ublas::vector<double> wienerIncrement(propensities.size());
+	for(int i = 0; i < wienerIncrement.size(); i++) {
+		std::normal_distribution<> dist(0, 1);
+		auto &rng = mod::lib::getRng();
+		const double rnd = dist(rng);
+		wienerIncrement(i) = std::sqrt(propensities(i)) * rnd;
+	}
+	boost::numeric::ublas::vector<double> diffusion = boost::numeric::ublas::prod(stoichiometric, wienerIncrement);
+	boost::numeric::ublas::vector<double> Q = std::sqrt(tau) * diffusion;
+
+    // compute the Ks
+    std::vector<boost::numeric::ublas::vector<double>> Ks(stages+1);
+    Ks[0] = boost::numeric::ublas::vector<double>(stoichiometric.size1(), 0.0);
+    Ks[1] = mus[0] * tau * f(m, stoichiometric, reactions, nus[0] * Q) + kappas[0] * Q;
+    for(int i = 2; i <= stages; i++) {
+        boost::numeric::ublas::vector<double> fResult = f(m, stoichiometric, reactions, Ks[i-1]);
+        Ks[i] = mus[i-1] * tau * fResult + nus[i-1] * Ks[i-1] + kappas[i-1] * Ks[i-2];
+    }
+
+    boost::numeric::ublas::vector<double> deltas = Ks[stages];
+
+    // construct an UpdateAction from the deltas
+	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+	for(const auto v: asRange(vertices(dgGraph))) {
+		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+			const auto place = m.getNet().getPlace(v);
+			const int delta = std::lround(deltas(place.getId()));
+			if(delta != 0) updates.emplace_back(v, delta);
+		}
+	}
+	Action action = UpdateAction{std::move(updates)};
+	return {action, tau, true};
 }
 
 // ==============================================================================================

@@ -3,6 +3,7 @@
 
 #include <mod/lib/Causality/EventTrace.hpp>
 
+#include <boost/numeric/ublas/matrix_sparse.hpp>
 #include <boost/numeric/ublas/vector.hpp>
 
 #include <functional>
@@ -80,8 +81,14 @@ struct DrawMassActionSKRockFunction {
     void syncSize();
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
-    double reactionPropensityAt(const Marking &m, lib::DG::HyperVertex, boost::numeric::ublas::vector<double>);
-    boost::numeric::ublas::vector<double> propensitiesAt(const Marking &m, boost::numeric::ublas::vector<double>);
+    double reactionPropensityWithDeltas(const Marking &m, lib::DG::HyperVertex, boost::numeric::ublas::vector<double>);
+    boost::numeric::ublas::vector<double> propensitiesWithDeltas(
+        const Marking &m, const std::vector<int> &reactions, boost::numeric::ublas::vector<double>);
+    boost::numeric::ublas::vector<double> f(
+        const Marking &m,
+        const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
+        const std::vector<int> &reactions,
+        boost::numeric::ublas::vector<double>);
     std::tuple<Action, double, bool> draw_v0(const Marking &m);
 private:
     const lib::DG::Hyper &dg;
