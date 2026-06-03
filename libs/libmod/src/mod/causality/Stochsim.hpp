@@ -227,6 +227,47 @@ private:
 
 // ==============================================================================================
 
+struct MOD_DECL DrawMassActionComplexEulerMaruyamaFunction {
+	DrawMassActionComplexEulerMaruyamaFunction(std::shared_ptr<dg::DG> dg_,
+	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
+	                   std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
+	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
+	                   double tau);
+	~DrawMassActionComplexEulerMaruyamaFunction();
+	DrawMassActionComplexEulerMaruyamaFunction(DrawMassActionComplexEulerMaruyamaFunction &&);
+	DrawMassActionComplexEulerMaruyamaFunction &operator=(DrawMassActionComplexEulerMaruyamaFunction &&);
+	DrawMassActionComplexEulerMaruyamaFunction(const DrawMassActionComplexEulerMaruyamaFunction &);
+	DrawMassActionComplexEulerMaruyamaFunction &operator=(const DrawMassActionComplexEulerMaruyamaFunction &);
+	void syncSize();
+	std::tuple<std::optional<Action>, double, bool> draw(const Marking &m);
+private:
+	struct Pimpl;
+	std::unique_ptr<Pimpl> p;
+};
+
+// ==============================================================================================
+
+struct MOD_DECL DrawMassActionComplexSKRockFunction {
+	DrawMassActionComplexSKRockFunction(std::shared_ptr<dg::DG> dg_,
+	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
+	                   std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
+	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
+	                   double tau,
+	                   int stages);
+	~DrawMassActionComplexSKRockFunction();
+	DrawMassActionComplexSKRockFunction(DrawMassActionComplexSKRockFunction &&);
+	DrawMassActionComplexSKRockFunction &operator=(DrawMassActionComplexSKRockFunction &&);
+	DrawMassActionComplexSKRockFunction(const DrawMassActionComplexSKRockFunction &);
+	DrawMassActionComplexSKRockFunction &operator=(const DrawMassActionComplexSKRockFunction &);
+	void syncSize();
+	std::tuple<std::optional<Action>, double, bool> draw(const Marking &m);
+private:
+	struct Pimpl;
+	std::unique_ptr<Pimpl> p;
+};
+
+// ==============================================================================================
+
 struct MOD_DECL SimulatorImpl {
 	SimulatorImpl();
 	~SimulatorImpl();

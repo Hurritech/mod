@@ -1292,6 +1292,44 @@ class _Simulator:
             return causality.Simulator.DrawMassActionSKRock.Function(dg,
                 self.inputRate, self.reactionRate, self.outputRate, self.tau, self.stages)
 
+    class DrawMassActionComplexEulerMaruyama:
+        def __init__(self, *,
+                inputRate: 	  Union[None, Callable[[DG.Vertex],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                reactionRate: Union[None, Callable[[DG.HyperEdge],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                outputRate:   Union[None, Callable[[DG.Vertex],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                tau:          float = 0.01) -> None:
+            self.inputRate = inputRate
+            self.reactionRate = reactionRate
+            self.outputRate = outputRate
+            self.tau = tau
+
+        def __call__(self, dg: DG) -> "causality.Simulator.DrawMassActionComplexEulerMaruyamaFunction":
+            return causality.Simulator.DrawMassActionComplexEulerMaruyama.Function(dg,
+                self.inputRate, self.reactionRate, self.outputRate, self.tau)
+
+    class DrawMassActionComplexSKRock:
+        def __init__(self, *,
+                inputRate: 	  Union[None, Callable[[DG.Vertex],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                reactionRate: Union[None, Callable[[DG.HyperEdge],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                outputRate:   Union[None, Callable[[DG.Vertex],
+                    Tuple[float, bool]], Tuple[float, bool]] = None,
+                tau:          float = 0.01,
+                stages:       int = 10) -> None:
+            self.inputRate = inputRate
+            self.reactionRate = reactionRate
+            self.outputRate = outputRate
+            self.tau = tau
+            self.stages = stages
+
+        def __call__(self, dg: DG) -> "causality.Simulator.DrawMassActionComplexSKRockFunction":
+            return causality.Simulator.DrawMassActionComplexSKRock.Function(dg,
+                self.inputRate, self.reactionRate, self.outputRate, self.tau, self.stages)
+
     def __init__(self, *,
             labelSettings: LabelSettings = LabelSettings(
                 LabelType.String, LabelRelation.Isomorphism),
@@ -1470,6 +1508,8 @@ causality.Simulator.DrawMassAction.Function = causality._DrawMassActionFunction 
 causality.Simulator.DrawMassActionTauLeaping.Function = causality._DrawMassActionTauLeapingFunction
 causality.Simulator.DrawMassActionEulerMaruyama.Function = causality._DrawMassActionEulerMaruyamaFunction
 causality.Simulator.DrawMassActionSKRock.Function = causality._DrawMassActionSKRockFunction
+causality.Simulator.DrawMassActionComplexEulerMaruyama.Function = causality._DrawMassActionComplexEulerMaruyamaFunction
+causality.Simulator.DrawMassActionComplexSKRock.Function = causality._DrawMassActionComplexSKRockFunction
 
 _DrawMassActionFunction__init__orig = causality.Simulator.DrawMassAction.Function.__init__  # type: ignore
 def _DrawMassActionFunction__init__(self: causality.Simulator.DrawMassAction.Function,  # type: ignore
@@ -1535,6 +1575,39 @@ def _DrawMassActionSKRockFunction__init__(self: causality.Simulator.DrawMassActi
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
     return _DrawMassActionSKRockFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau, stages)
 causality.Simulator.DrawMassActionSKRock.Function.__init__ = _DrawMassActionSKRockFunction__init__
+
+_DrawMassActionComplexEulerMaruyamaFunction__init__orig = causality.Simulator.DrawMassActionComplexEulerMaruyama.Function.__init__
+def _DrawMassActionComplexEulerMaruyamaFunction__init__(self: causality.Simulator.DrawMassActionComplexEulerMaruyama.Function,
+            dg: DG,
+            inputRate:    Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]],
+            reactionRate: Union[None, Callable[[DG.HyperEdge],
+                Tuple[float, bool]], Tuple[float, bool]],
+            outputRate: Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]],
+            tau: float) -> None:
+    inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
+    reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
+    outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
+    return _DrawMassActionComplexEulerMaruyamaFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau)
+causality.Simulator.DrawMassActionComplexEulerMaruyama.Function.__init__ = _DrawMassActionComplexEulerMaruyamaFunction__init__
+
+_DrawMassActionComplexSKRockFunction__init__orig = causality.Simulator.DrawMassActionComplexSKRock.Function.__init__
+def _DrawMassActionComplexSKRockFunction__init__(self: causality.Simulator.DrawMassActionComplexSKRock.Function,
+            dg: DG,
+            inputRate:    Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]],
+            reactionRate: Union[None, Callable[[DG.HyperEdge],
+                Tuple[float, bool]], Tuple[float, bool]],
+            outputRate: Union[None, Callable[[DG.Vertex],
+                Tuple[float, bool]], Tuple[float, bool]],
+            tau: float,
+            stages: int) -> None:
+    inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
+    reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
+    outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
+    return _DrawMassActionComplexSKRockFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau, stages)
+causality.Simulator.DrawMassActionComplexSKRock.Function.__init__ = _DrawMassActionComplexSKRockFunction__init__
 
 
 ###########################################################

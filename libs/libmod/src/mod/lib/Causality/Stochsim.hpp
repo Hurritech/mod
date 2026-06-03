@@ -6,6 +6,7 @@
 #include <boost/numeric/ublas/matrix_sparse.hpp>
 #include <boost/numeric/ublas/vector.hpp>
 
+#include <complex>
 #include <functional>
 #include <tuple>
 
@@ -106,6 +107,64 @@ private:
     const int stages;
     bool stateInitialised = false;
     boost::numeric::ublas::vector<double> state;
+    std::vector<double> cachedInputRates, cachedRates;
+};
+
+struct DrawMassActionComplexEulerMaruyamaFunction {
+    using ComplexVector = boost::numeric::ublas::vector<std::complex<double>>;
+
+    DrawMassActionComplexEulerMaruyamaFunction(const lib::DG::Hyper &dg,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+        double tau);
+    void syncSize();
+    std::tuple<Action, double, bool> draw(const Marking &m);
+private:
+    std::tuple<Action, double, bool> draw_v0(const Marking &m);
+    void syncState(const Marking &m);
+    ComplexVector propensities(const Marking &m, const std::vector<int> &reactions);
+    Action makeSyncAction(const Marking &m) const;
+private:
+    const lib::DG::Hyper &dg;
+    const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
+            inputRate, reactionRate, outputRate;
+    const double tau;
+    bool stateInitialised = false;
+    ComplexVector state;
+    std::vector<double> cachedInputRates, cachedRates;
+};
+
+struct DrawMassActionComplexSKRockFunction {
+    using ComplexVector = boost::numeric::ublas::vector<std::complex<double>>;
+
+    DrawMassActionComplexSKRockFunction(const lib::DG::Hyper &dg,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+        std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+        double tau, int stages);
+    void syncSize();
+    std::tuple<Action, double, bool> draw(const Marking &m);
+private:
+    void syncState(const Marking &m);
+    Action makeSyncAction(const Marking &m) const;
+    std::complex<double> reactionPropensityWithDeltas(const Marking &m, lib::DG::HyperVertex, ComplexVector);
+    ComplexVector propensitiesWithDeltas(
+        const Marking &m, const std::vector<int> &reactions, ComplexVector);
+    ComplexVector f(
+        const Marking &m,
+        const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
+        const std::vector<int> &reactions,
+        ComplexVector);
+    std::tuple<Action, double, bool> draw_v0(const Marking &m);
+private:
+    const lib::DG::Hyper &dg;
+    const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
+            inputRate, reactionRate, outputRate;
+    const double tau;
+    const int stages;
+    bool stateInitialised = false;
+    ComplexVector state;
     std::vector<double> cachedInputRates, cachedRates;
 };
 

@@ -8,6 +8,7 @@
 #include <boost/numeric/ublas/matrix_sparse.hpp>
 
 #include <algorithm>
+#include <complex>
 #include <iostream>
 #include <cmath>
 #include <ctime>
@@ -52,6 +53,8 @@ namespace {
 #endif
 
 using PropensityEntry = std::pair<int, double>;
+using Complex = std::complex<double>;
+using ComplexVector = boost::numeric::ublas::vector<Complex>;
 
 double reactionPropensity(lib::DG::HyperVertex e, const Marking &m) {
 	const petri::Transition t = m.getNet().getTransition(e);
@@ -218,6 +221,46 @@ bool hasPositiveEntry(const boost::numeric::ublas::vector<double> &v) {
 	for(std::size_t i = 0; i < v.size(); ++i)
 		if(v(i) > 0.0) return true;
 	return false;
+}
+
+Complex complexReactionPropensity(
+		lib::DG::HyperVertex e,
+		const Marking &m,
+		const ComplexVector &amounts,
+		const ComplexVector *deltas = nullptr) {
+	const auto &net = m.getNet().getNet();
+	const auto &g = net.getGraph();
+	const auto t = m.getNet().getTransition(e);
+	const auto vt = net.vertexFromTransition(t);
+	Complex res = 1.0;
+	for(const auto eIn: asRange(in_edges(vt, g))) {
+		const auto vIn = source(eIn, g);
+		assert(g[vIn].kind == petri::Net::Kind::Place);
+		const auto place = net.placeFromVertex(vIn);
+		Complex c = amounts(place.getId());
+		if(deltas) c += (*deltas)(place.getId());
+		const int w = g[eIn];
+		for(int i = 0; i < w; ++i)
+			res *= (c - static_cast<double>(i)) / static_cast<double>(i + 1);
+	}
+	return res;
+}
+
+bool hasNonZeroEntry(const ComplexVector &v) {
+	for(std::size_t i = 0; i < v.size(); ++i)
+		if(std::abs(v(i)) > 0.0) return true;
+	return false;
+}
+
+ComplexVector complexProd(
+		const boost::numeric::ublas::mapped_matrix<double> &m,
+		const ComplexVector &v) {
+	ComplexVector result(m.size1(), Complex{0.0, 0.0});
+	for(auto it1 = m.begin1(); it1 != m.end1(); ++it1) {
+		for(auto it2 = it1.begin(); it2 != it1.end(); ++it2)
+			result(it2.index1()) += *it2 * v(it2.index2());
+	}
+	return result;
 }
 
 } // namespace
@@ -961,6 +1004,363 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
 	state += deltas;
 	for(std::size_t i = 0; i < state.size(); ++i)
 		state(i) = std::max(0.0, state(i));
+
+	return {makeSyncAction(m), tau, true};
+}
+
+// ==============================================================================================
+
+DrawMassActionComplexEulerMaruyamaFunction::DrawMassActionComplexEulerMaruyamaFunction(
+	const lib::DG::Hyper &dg,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+	double tau)
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau) {
+	syncSize();
+}
+
+void DrawMassActionComplexEulerMaruyamaFunction::syncSize() {
+	const auto &g = dg.getGraph();
+	const auto n = num_vertices(g);
+	cachedInputRates.resize(n, -1.0);
+	cachedRates.resize(n, -1.0);
+}
+
+std::tuple<Action, double, bool> DrawMassActionComplexEulerMaruyamaFunction::draw(const Marking &m) {
+	return draw_v0(m);
+}
+
+void DrawMassActionComplexEulerMaruyamaFunction::syncState(const Marking &m) {
+	const auto numPlaces = m.getNet().getNet().numPlaces();
+	const auto oldSize = state.size();
+	state.resize(numPlaces, true);
+	if(!stateInitialised) {
+		for(const auto v: asRange(vertices(dg.getGraph()))) {
+			if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+			const auto place = m.getNet().getPlace(v);
+			state(place.getId()) = static_cast<double>(m.getMarking()[place]);
+		}
+		stateInitialised = true;
+		return;
+	}
+	for(auto i = oldSize; i < numPlaces; ++i)
+		state(i) = Complex{0.0, 0.0};
+}
+
+DrawMassActionComplexEulerMaruyamaFunction::ComplexVector
+DrawMassActionComplexEulerMaruyamaFunction::propensities(
+		const Marking &m, const std::vector<int> &reactions) {
+	const auto &dgGraph = dg.getGraph();
+	ComplexVector results(reactions.size(), Complex{0.0, 0.0});
+	for(std::size_t i = 0; i < reactions.size(); ++i) {
+		const int idx = reactions[i];
+		if(idx >= 0) {
+			const auto v = vertices(dgGraph).first[idx];
+			Complex reactionPropensity = 0.0;
+			if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+				reactionPropensity = complexReactionPropensity(v, m, state);
+			}
+
+			double r = cachedRates[idx];
+			if(r < 0) {
+				if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge && reactionRate) {
+					bool cache;
+					std::tie(r, cache) = reactionRate(dg, v);
+					if(cache) cachedRates[idx] = r;
+				} else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex && outputRate) {
+					bool cache;
+					std::tie(r, cache) = outputRate(dg, v);
+					if(cache) cachedRates[idx] = r;
+				} else {
+					r = dgGraph[v].kind == lib::DG::HyperVertexKind::Edge ? 1.0 : 0.0;
+					cachedRates[idx] = r;
+				}
+			}
+			if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+				results(i) = r * reactionPropensity;
+			} else {
+				const auto place = m.getNet().getPlace(v);
+				results(i) = r * state(place.getId());
+			}
+		} else {
+			const auto rateIdx = -idx - 1;
+			const auto v = vertices(dgGraph).first[rateIdx];
+			double r = cachedInputRates[rateIdx];
+			if(r < 0) {
+				if(inputRate) {
+					bool cache;
+					std::tie(r, cache) = inputRate(dg, v);
+					if(cache) cachedInputRates[rateIdx] = r;
+				} else {
+					cachedInputRates[rateIdx] = r = 0.0;
+				}
+			}
+			results(i) = r;
+		}
+	}
+	return results;
+}
+
+Action DrawMassActionComplexEulerMaruyamaFunction::makeSyncAction(const Marking &m) const {
+	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+	for(const auto v: asRange(vertices(dg.getGraph()))) {
+		if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+		const auto place = m.getNet().getPlace(v);
+		const int desired = static_cast<int>(std::lround(std::max(0.0, std::real(state(place.getId())))));
+		const int delta = desired - m.getMarking()[place];
+		if(delta != 0) updates.emplace_back(v, delta);
+	}
+	return UpdateAction{std::move(updates)};
+}
+
+std::tuple<Action, double, bool> DrawMassActionComplexEulerMaruyamaFunction::draw_v0(const Marking &m) {
+	const auto &dgGraph = dg.getGraph();
+	syncState(m);
+
+	std::vector<int> reactions;
+	for(const auto v: asRange(vertices(dgGraph))) {
+		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
+		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+			reactions.emplace_back(idx);
+		} else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+			reactions.emplace_back(idx);
+			reactions.emplace_back(-idx - 1);
+		}
+	}
+	auto propensities = this->propensities(m, reactions);
+	if(propensities.size() == 0 || !hasNonZeroEntry(propensities))
+		return {{}, 0.0, false};
+
+	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), reactions.size());
+	for(std::size_t reaction = 0; reaction < reactions.size(); ++reaction) {
+		const auto idx = reactions[reaction];
+		for(const auto &[place, w] : consumed(dg, m, idx))
+			stoichiometric(place.getId(), reaction) -= w;
+		for(const auto &[place, w] : produced(dg, m, idx))
+			stoichiometric(place.getId(), reaction) += w;
+	}
+
+	ComplexVector drift = complexProd(stoichiometric, propensities);
+	ComplexVector wienerIncrement(propensities.size());
+	for(int i = 0; i < wienerIncrement.size(); i++) {
+		std::normal_distribution<> dist(0, 1);
+		auto &rng = mod::lib::getRng();
+		const double rnd = dist(rng);
+		wienerIncrement(i) = std::sqrt(propensities(i)) * rnd;
+	}
+	ComplexVector diffusion = complexProd(stoichiometric, wienerIncrement);
+	ComplexVector deltas = tau * drift + std::sqrt(tau) * diffusion;
+	state += deltas;
+
+	return {makeSyncAction(m), tau, true};
+}
+
+// ==============================================================================================
+
+DrawMassActionComplexSKRockFunction::DrawMassActionComplexSKRockFunction(
+	const lib::DG::Hyper &dg,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
+	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
+	double tau,
+	int stages)
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau), stages(stages) {
+	syncSize();
+}
+
+void DrawMassActionComplexSKRockFunction::syncSize() {
+	const auto &g = dg.getGraph();
+	const auto n = num_vertices(g);
+	cachedInputRates.resize(n, -1.0);
+	cachedRates.resize(n, -1.0);
+}
+
+std::tuple<Action, double, bool> DrawMassActionComplexSKRockFunction::draw(const Marking &m) {
+	return draw_v0(m);
+}
+
+void DrawMassActionComplexSKRockFunction::syncState(const Marking &m) {
+	const auto numPlaces = m.getNet().getNet().numPlaces();
+	const auto oldSize = state.size();
+	state.resize(numPlaces, true);
+	if(!stateInitialised) {
+		for(const auto v: asRange(vertices(dg.getGraph()))) {
+			if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+			const auto place = m.getNet().getPlace(v);
+			state(place.getId()) = static_cast<double>(m.getMarking()[place]);
+		}
+		stateInitialised = true;
+		return;
+	}
+	for(auto i = oldSize; i < numPlaces; ++i)
+		state(i) = Complex{0.0, 0.0};
+}
+
+Action DrawMassActionComplexSKRockFunction::makeSyncAction(const Marking &m) const {
+	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+	for(const auto v: asRange(vertices(dg.getGraph()))) {
+		if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+		const auto place = m.getNet().getPlace(v);
+		const int desired = static_cast<int>(std::lround(std::max(0.0, std::real(state(place.getId())))));
+		const int delta = desired - m.getMarking()[place];
+		if(delta != 0) updates.emplace_back(v, delta);
+	}
+	return UpdateAction{std::move(updates)};
+}
+
+std::complex<double> DrawMassActionComplexSKRockFunction::reactionPropensityWithDeltas(
+    const Marking &m,
+    lib::DG::HyperVertex e,
+    ComplexVector deltas) {
+	return complexReactionPropensity(e, m, state, &deltas);
+}
+
+DrawMassActionComplexSKRockFunction::ComplexVector
+DrawMassActionComplexSKRockFunction::propensitiesWithDeltas(
+    const Marking &m,
+    const std::vector<int> &reactions,
+    ComplexVector deltas) {
+    const auto &dgGraph = dg.getGraph();
+    ComplexVector results(reactions.size(), Complex{0.0, 0.0});
+
+    for(std::size_t i = 0; i < reactions.size(); i++) {
+        const int idx = reactions[i];
+
+        if(idx >= 0) {
+            const auto v = vertices(dgGraph).first[idx];
+            Complex reactionPropensity = 0.0;
+            if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge)
+                reactionPropensity = reactionPropensityWithDeltas(m, v, deltas);
+
+            double r = cachedRates[idx];
+            if(r < 0) {
+                if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge && reactionRate) {
+                    bool cache;
+                    std::tie(r, cache) = reactionRate(dg, v);
+                    if(cache) cachedRates[idx] = r;
+                } else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex && outputRate) {
+                    bool cache;
+                    std::tie(r, cache) = outputRate(dg, v);
+                    if(cache) cachedRates[idx] = r;
+                } else {
+                    r = dgGraph[v].kind == lib::DG::HyperVertexKind::Edge ? 1.0 : 0.0;
+                    cachedRates[idx] = r;
+                }
+            }
+
+            if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge)
+                results(i) = r * reactionPropensity;
+            else {
+                const auto place = m.getNet().getPlace(v);
+                results(i) = r * (state(place.getId()) + deltas(place.getId()));
+            }
+        } else {
+            const auto v = vertices(dgGraph).first[-idx - 1];
+
+            double r = cachedInputRates[-idx - 1];
+            if(r < 0) {
+                if(inputRate) {
+                    bool cache;
+                    std::tie(r, cache) = inputRate(dg, v);
+                    if(cache) cachedInputRates[-idx - 1] = r;
+                } else {
+                    cachedInputRates[-idx - 1] = r = 0.0;
+                }
+            }
+
+            results(i) = r;
+        }
+	}
+
+	return results;
+}
+
+DrawMassActionComplexSKRockFunction::ComplexVector DrawMassActionComplexSKRockFunction::f(
+    const Marking &m,
+    const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
+    const std::vector<int> &reactions,
+    ComplexVector deltas) {
+    return complexProd(stoichiometric, propensitiesWithDeltas(m, reactions, deltas));
+}
+
+std::tuple<Action, double, bool> DrawMassActionComplexSKRockFunction::draw_v0(const Marking &m) {
+    const auto &dgGraph = dg.getGraph();
+	syncState(m);
+	if(stages < 1)
+		return {{}, 0.0, false};
+
+	std::vector<int> reactions;
+	for(const auto v: asRange(vertices(dgGraph))) {
+		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
+		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+			reactions.emplace_back(idx);
+		} else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+			reactions.emplace_back(idx);
+			reactions.emplace_back(-idx - 1);
+		}
+	}
+	ComplexVector zeroDeltas(m.getNet().getNet().numPlaces(), Complex{0.0, 0.0});
+	auto propensities = propensitiesWithDeltas(m, reactions, zeroDeltas);
+	if(propensities.size() == 0 || !hasNonZeroEntry(propensities))
+		return {{}, 0.0, false};
+
+	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), reactions.size());
+	for(std::size_t reaction = 0; reaction < reactions.size(); ++reaction) {
+		const auto idx = reactions[reaction];
+		for(const auto &[place, w] : consumed(dg, m, idx))
+			stoichiometric(place.getId(), reaction) -= w;
+		for(const auto &[place, w] : produced(dg, m, idx))
+			stoichiometric(place.getId(), reaction) += w;
+	}
+
+    double eta = 0.05;
+    double omega0 = 1 + eta / (static_cast<double>(stages) * static_cast<double>(stages));
+
+    std::vector<double> chebyshev(stages+1);
+    chebyshev[0] = 1;
+    chebyshev[1] = omega0;
+    for(int i = 2; i <= stages; i++)
+        chebyshev[i] = 2*omega0*chebyshev[i-1]-chebyshev[i-2];
+
+    std::vector<double> dchebyshev(stages+1);
+    dchebyshev[0] = 0;
+    dchebyshev[1] = 1;
+    for(int i = 2; i <= stages; i++)
+        dchebyshev[i] = 2*omega0*dchebyshev[i-1]+2*chebyshev[i-1]-dchebyshev[i-2];
+
+	double omega1 = chebyshev[stages] / dchebyshev[stages];
+
+	std::vector<double> mus(stages), nus(stages), kappas(stages);
+	mus[0] = omega1 / omega0;
+	nus[0] = static_cast<double>(stages) * omega1 / 2;
+    kappas[0] = static_cast<double>(stages) * omega1 / omega0;
+	for(int i = 2; i <= stages; i++) {
+		mus[i-1] = 2 * omega1 * chebyshev[i-1] / chebyshev[i];
+		nus[i-1] = 2 * omega0 * chebyshev[i-1] / chebyshev[i];
+		kappas[i-1] = - chebyshev[i-2] / chebyshev[i];
+	}
+
+	ComplexVector wienerIncrement(propensities.size());
+	for(int i = 0; i < wienerIncrement.size(); i++) {
+		std::normal_distribution<> dist(0, 1);
+		auto &rng = mod::lib::getRng();
+		const double rnd = dist(rng);
+		wienerIncrement(i) = std::sqrt(propensities(i)) * rnd;
+	}
+	ComplexVector diffusion = complexProd(stoichiometric, wienerIncrement);
+	ComplexVector Q = std::sqrt(tau) * diffusion;
+
+    std::vector<ComplexVector> Ks(stages+1);
+    Ks[0] = ComplexVector(stoichiometric.size1(), Complex{0.0, 0.0});
+    Ks[1] = mus[0] * tau * f(m, stoichiometric, reactions, nus[0] * Q) + kappas[0] * Q;
+    for(int i = 2; i <= stages; i++) {
+        ComplexVector fResult = f(m, stoichiometric, reactions, Ks[i-1]);
+        Ks[i] = mus[i-1] * tau * fResult + nus[i-1] * Ks[i-1] + kappas[i-1] * Ks[i-2];
+    }
+
+    ComplexVector deltas = Ks[stages];
+	state += deltas;
 
 	return {makeSyncAction(m), tau, true};
 }

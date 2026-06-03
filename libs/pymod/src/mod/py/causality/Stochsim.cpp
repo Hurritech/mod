@@ -57,6 +57,32 @@ DrawMassActionSKRockFunction_ctor(std::shared_ptr<dg::DG> dg_,
 	                                                tau, stages);
 }
 
+std::shared_ptr<DrawMassActionComplexEulerMaruyamaFunction>
+DrawMassActionComplexEulerMaruyamaFunction_ctor(std::shared_ptr<dg::DG> dg_,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
+                            double tau) {
+	return std::make_shared<DrawMassActionComplexEulerMaruyamaFunction>(dg_,
+	                                                toStdFunction(inputRate),
+	                                                toStdFunction(reactionRate),
+	                                                toStdFunction(outputRate),
+	                                                tau);
+}
+
+std::shared_ptr<DrawMassActionComplexSKRockFunction>
+DrawMassActionComplexSKRockFunction_ctor(std::shared_ptr<dg::DG> dg_,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
+                            std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
+                            double tau, int stages) {
+	return std::make_shared<DrawMassActionComplexSKRockFunction>(dg_,
+	                                                toStdFunction(inputRate),
+	                                                toStdFunction(reactionRate),
+	                                                toStdFunction(outputRate),
+	                                                tau, stages);
+}
+
 std::shared_ptr<SimulatorImpl>
 SimulatorImpl_ctor() {
 	return std::make_shared<SimulatorImpl>();
@@ -292,6 +318,18 @@ void Stochsim_doExport() {
 	        .def("__init__", py::make_constructor(&DrawMassActionSKRockFunction_ctor))
 	        .def("syncSize", &DrawMassActionSKRockFunction::syncSize)
 	        .def("draw", &DrawMassActionSKRockFunction::draw);
+
+	// TODO Add rst
+	py::class_<DrawMassActionComplexEulerMaruyamaFunction>("_DrawMassActionComplexEulerMaruyamaFunction", py::no_init)
+	        .def("__init__", py::make_constructor(&DrawMassActionComplexEulerMaruyamaFunction_ctor))
+	        .def("syncSize", &DrawMassActionComplexEulerMaruyamaFunction::syncSize)
+	        .def("draw", &DrawMassActionComplexEulerMaruyamaFunction::draw);
+
+	// TODO Add rst
+	py::class_<DrawMassActionComplexSKRockFunction>("_DrawMassActionComplexSKRockFunction", py::no_init)
+	        .def("__init__", py::make_constructor(&DrawMassActionComplexSKRockFunction_ctor))
+	        .def("syncSize", &DrawMassActionComplexSKRockFunction::syncSize)
+	        .def("draw", &DrawMassActionComplexSKRockFunction::draw);
 
 	// rst:
 	// rst: .. class:: causality.DrawFunction
