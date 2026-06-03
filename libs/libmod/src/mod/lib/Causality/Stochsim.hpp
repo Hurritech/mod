@@ -64,11 +64,17 @@ struct DrawMassActionEulerMaruyamaFunction {
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
     std::tuple<Action, double, bool> draw_v0(const Marking &m);
+    void syncState(const Marking &m);
+    boost::numeric::ublas::vector<double> propensities(
+        const Marking &m, const std::vector<int> &reactions);
+    Action makeSyncAction(const Marking &m) const;
 private:
     const lib::DG::Hyper &dg;
     const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
             inputRate, reactionRate, outputRate;
     const double tau;
+    bool stateInitialised = false;
+    boost::numeric::ublas::vector<double> state;
     std::vector<double> cachedInputRates, cachedRates;
 };
 
@@ -81,6 +87,8 @@ struct DrawMassActionSKRockFunction {
     void syncSize();
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
+    void syncState(const Marking &m);
+    Action makeSyncAction(const Marking &m) const;
     double reactionPropensityWithDeltas(const Marking &m, lib::DG::HyperVertex, boost::numeric::ublas::vector<double>);
     boost::numeric::ublas::vector<double> propensitiesWithDeltas(
         const Marking &m, const std::vector<int> &reactions, boost::numeric::ublas::vector<double>);
@@ -96,6 +104,8 @@ private:
             inputRate, reactionRate, outputRate;
     const double tau;
     const int stages;
+    bool stateInitialised = false;
+    boost::numeric::ublas::vector<double> state;
     std::vector<double> cachedInputRates, cachedRates;
 };
 

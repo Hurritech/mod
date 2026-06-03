@@ -188,6 +188,38 @@ std::vector<std::pair<petri::Place,int>> produced(const lib::DG::Hyper &dg, cons
     }
 }
 
+double realReactionPropensity(
+		lib::DG::HyperVertex e,
+		const Marking &m,
+		const boost::numeric::ublas::vector<double> &amounts,
+		const boost::numeric::ublas::vector<double> *deltas = nullptr) {
+	const auto &net = m.getNet().getNet();
+	const auto &g = net.getGraph();
+	const auto t = m.getNet().getTransition(e);
+	const auto vt = net.vertexFromTransition(t);
+	double res = 1.0;
+	for(const auto eIn: asRange(in_edges(vt, g))) {
+		const auto vIn = source(eIn, g);
+		assert(g[vIn].kind == petri::Net::Kind::Place);
+		const auto place = net.placeFromVertex(vIn);
+		double c = amounts(place.getId());
+		if(deltas) c += (*deltas)(place.getId());
+		c = std::max(0.0, c);
+		const int w = g[eIn];
+		for(int i = 0; i < w; ++i) {
+			if(c <= static_cast<double>(i)) return 0.0;
+			res *= (c - static_cast<double>(i)) / static_cast<double>(i + 1);
+		}
+	}
+	return res;
+}
+
+bool hasPositiveEntry(const boost::numeric::ublas::vector<double> &v) {
+	for(std::size_t i = 0; i < v.size(); ++i)
+		if(v(i) > 0.0) return true;
+	return false;
+}
+
 } // namespace
 
 DrawMassActionFunction::DrawMassActionFunction(
@@ -578,31 +610,117 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw(const
 	return draw_v0(m);
 }
 
+void DrawMassActionEulerMaruyamaFunction::syncState(const Marking &m) {
+	const auto numPlaces = m.getNet().getNet().numPlaces();
+	const auto oldSize = state.size();
+	state.resize(numPlaces, true);
+	if(!stateInitialised) {
+		for(const auto v: asRange(vertices(dg.getGraph()))) {
+			if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+			const auto place = m.getNet().getPlace(v);
+			state(place.getId()) = static_cast<double>(m.getMarking()[place]);
+		}
+		stateInitialised = true;
+		return;
+	}
+	for(auto i = oldSize; i < numPlaces; ++i)
+		state(i) = 0.0;
+}
+
+boost::numeric::ublas::vector<double> DrawMassActionEulerMaruyamaFunction::propensities(
+		const Marking &m, const std::vector<int> &reactions) {
+	const auto &dgGraph = dg.getGraph();
+	boost::numeric::ublas::vector<double> results(reactions.size(), 0.0);
+	for(std::size_t i = 0; i < reactions.size(); ++i) {
+		const int idx = reactions[i];
+		if(idx >= 0) {
+			const auto v = vertices(dgGraph).first[idx];
+			double reactionPropensity = 0.0;
+			if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+				reactionPropensity = realReactionPropensity(v, m, state);
+				if(reactionPropensity == 0.0) continue;
+			} else {
+				const auto place = m.getNet().getPlace(v);
+				if(state(place.getId()) <= 0.0) continue;
+			}
+			double r = cachedRates[idx];
+			if(r < 0) {
+				if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge && reactionRate) {
+					bool cache;
+					std::tie(r, cache) = reactionRate(dg, v);
+					if(cache) cachedRates[idx] = r;
+				} else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex && outputRate) {
+					bool cache;
+					std::tie(r, cache) = outputRate(dg, v);
+					if(cache) cachedRates[idx] = r;
+				} else {
+					r = dgGraph[v].kind == lib::DG::HyperVertexKind::Edge ? 1.0 : 0.0;
+					cachedRates[idx] = r;
+				}
+			}
+			if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+				results(i) = r * reactionPropensity;
+			} else {
+				const auto place = m.getNet().getPlace(v);
+				results(i) = r * std::max(0.0, state(place.getId()));
+			}
+		} else {
+			const auto rateIdx = -idx - 1;
+			const auto v = vertices(dgGraph).first[rateIdx];
+			double r = cachedInputRates[rateIdx];
+			if(r < 0) {
+				if(inputRate) {
+					bool cache;
+					std::tie(r, cache) = inputRate(dg, v);
+					if(cache) cachedInputRates[rateIdx] = r;
+				} else {
+					cachedInputRates[rateIdx] = r = 0.0;
+				}
+			}
+			results(i) = r;
+		}
+	}
+	return results;
+}
+
+Action DrawMassActionEulerMaruyamaFunction::makeSyncAction(const Marking &m) const {
+	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+	for(const auto v: asRange(vertices(dg.getGraph()))) {
+		if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+		const auto place = m.getNet().getPlace(v);
+		const int desired = static_cast<int>(std::lround(std::max(0.0, state(place.getId()))));
+		const int delta = desired - m.getMarking()[place];
+		if(delta != 0) updates.emplace_back(v, delta);
+	}
+	return UpdateAction{std::move(updates)};
+}
+
 std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(const Marking &m) {
 	const auto &dgGraph = dg.getGraph();
-	auto tmpPropensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
-														 cachedInputRates, cachedRates);
-
-	if(tmpPropensities.empty())
-		return {{}, 0.0, false};
+	syncState(m);
 
 	// idx of the reactions
 	std::vector<int> reactions;
-	// propensities of the reactions
-	boost::numeric::ublas::vector<double> propensities(tmpPropensities.size());
-	// stoichiometric matrix for the reactions
-	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), tmpPropensities.size());
+	for(const auto v: asRange(vertices(dgGraph))) {
+		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
+		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+			reactions.emplace_back(idx);
+		} else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+			reactions.emplace_back(idx);
+			reactions.emplace_back(-idx - 1);
+		}
+	}
+	auto propensities = this->propensities(m, reactions);
+	if(propensities.size() == 0 || !hasPositiveEntry(propensities))
+		return {{}, 0.0, false};
 
-	int reaction = 0;
-	for(const auto &[idx, propensity] : tmpPropensities) {
+	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), reactions.size());
+	for(std::size_t reaction = 0; reaction < reactions.size(); ++reaction) {
+		const auto idx = reactions[reaction];
 		for(const auto &[place, w] : consumed(dg, m, idx))
 			stoichiometric(place.getId(), reaction) -= w;
 		for(const auto &[place, w] : produced(dg, m, idx))
 			stoichiometric(place.getId(), reaction) += w;
-
-		reactions.emplace_back(idx);
-		propensities(reaction) = propensity;
-		reaction++;
 	}
 
 	boost::numeric::ublas::vector<double> drift = boost::numeric::ublas::prod(stoichiometric, propensities);
@@ -617,18 +735,11 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 	boost::numeric::ublas::vector<double> diffusion = boost::numeric::ublas::prod(stoichiometric, wienerIncrement);
 
 	boost::numeric::ublas::vector<double> deltas = tau * drift + std::sqrt(tau) * diffusion;
+	state += deltas;
+	for(std::size_t i = 0; i < state.size(); ++i)
+		state(i) = std::max(0.0, state(i));
 
-	// construct an UpdateAction from the deltas
-	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
-	for(const auto v: asRange(vertices(dgGraph))) {
-		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
-			const auto place = m.getNet().getPlace(v);
-			const int delta = std::lround(deltas(place.getId()));
-			if(delta != 0) updates.emplace_back(v, delta);
-		}
-	}
-	Action action = UpdateAction{std::move(updates)};
-	return {action, tau, true};
+	return {makeSyncAction(m), tau, true};
 }
 
 // ==============================================================================================
@@ -655,26 +766,40 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw(const Markin
 	return draw_v0(m);
 }
 
+void DrawMassActionSKRockFunction::syncState(const Marking &m) {
+	const auto numPlaces = m.getNet().getNet().numPlaces();
+	const auto oldSize = state.size();
+	state.resize(numPlaces, true);
+	if(!stateInitialised) {
+		for(const auto v: asRange(vertices(dg.getGraph()))) {
+			if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+			const auto place = m.getNet().getPlace(v);
+			state(place.getId()) = static_cast<double>(m.getMarking()[place]);
+		}
+		stateInitialised = true;
+		return;
+	}
+	for(auto i = oldSize; i < numPlaces; ++i)
+		state(i) = 0.0;
+}
+
+Action DrawMassActionSKRockFunction::makeSyncAction(const Marking &m) const {
+	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
+	for(const auto v: asRange(vertices(dg.getGraph()))) {
+		if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
+		const auto place = m.getNet().getPlace(v);
+		const int desired = static_cast<int>(std::lround(std::max(0.0, state(place.getId()))));
+		const int delta = desired - m.getMarking()[place];
+		if(delta != 0) updates.emplace_back(v, delta);
+	}
+	return UpdateAction{std::move(updates)};
+}
+
 double DrawMassActionSKRockFunction::reactionPropensityWithDeltas(
     const Marking &m,
     lib::DG::HyperVertex e,
     boost::numeric::ublas::vector<double> deltas) {
-	const petri::Transition t = m.getNet().getTransition(e);
-	const auto &marking = m.getMarking();
-	const auto &net = m.getNet().getNet();
-	const auto &g = net.getGraph();
-	const auto vt = net.vertexFromTransition(t);
-	double res = 1.0;
-	for(const auto eIn: asRange(in_edges(vt, g))) {
-		const auto vIn = source(eIn, g);
-		assert(g[vIn].kind == petri::Net::Kind::Place);
-		const auto place = net.placeFromVertex(vIn);
-		const double c = std::max(0.0, static_cast<double>(marking[place]) + deltas(place.getId()));
-		const int w = g[eIn];
-		for(int i = 0; i < w; ++i)
-			res *= (c - static_cast<double>(i)) / static_cast<double>(i + 1);
-	}
-	return res;
+	return realReactionPropensity(e, m, state, &deltas);
 }
 
 boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensitiesWithDeltas(
@@ -689,6 +814,14 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensities
 
         if(idx >= 0) {
             const auto v = vertices(dgGraph).first[idx];
+            double reactionPropensity = 0.0;
+            if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+                reactionPropensity = reactionPropensityWithDeltas(m, v, deltas);
+                if(reactionPropensity == 0.0) continue;
+            } else {
+                const auto place = m.getNet().getPlace(v);
+                if(state(place.getId()) + deltas(place.getId()) <= 0.0) continue;
+            }
 
             double r = cachedRates[idx];
             if(r < 0) {
@@ -707,10 +840,10 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensities
             }
 
             if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge)
-                results(i) = r * reactionPropensityWithDeltas(m, v, deltas);
+                results(i) = r * reactionPropensity;
             else {
                 const auto place = m.getNet().getPlace(v);
-                results(i) = r * std::max(0.0, static_cast<double>(m.getMarking()[place]) + deltas(place.getId()));
+                results(i) = r * std::max(0.0, state(place.getId()) + deltas(place.getId()));
             }
         } else {
             const auto v = vertices(dgGraph).first[-idx - 1];
@@ -744,31 +877,33 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::f(
 
 std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Marking &m) {
     const auto &dgGraph = dg.getGraph();
-	auto tmpPropensities = computePropensities(dg, m, inputRate, reactionRate, outputRate,
-														 cachedInputRates, cachedRates);
-
-	if(tmpPropensities.empty())
-		return {{}, 0.0, false};
+	syncState(m);
 	if(stages < 1)
 		return {{}, 0.0, false};
 
 	// idx of the reactions
 	std::vector<int> reactions;
-	// propensities of the reactions
-	boost::numeric::ublas::vector<double> propensities(tmpPropensities.size());
-	// stoichiometric matrix for the reactions
-	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), tmpPropensities.size());
+	for(const auto v: asRange(vertices(dgGraph))) {
+		const auto idx = get(boost::vertex_index_t(), dgGraph, v);
+		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Edge) {
+			reactions.emplace_back(idx);
+		} else if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
+			reactions.emplace_back(idx);
+			reactions.emplace_back(-idx - 1);
+		}
+	}
+	boost::numeric::ublas::vector<double> zeroDeltas(m.getNet().getNet().numPlaces(), 0.0);
+	auto propensities = propensitiesWithDeltas(m, reactions, zeroDeltas);
+	if(propensities.size() == 0 || !hasPositiveEntry(propensities))
+		return {{}, 0.0, false};
 
-	int reaction = 0;
-	for(const auto &[idx, propensity] : tmpPropensities) {
+	boost::numeric::ublas::mapped_matrix<double> stoichiometric(m.getNet().getNet().numPlaces(), reactions.size());
+	for(std::size_t reaction = 0; reaction < reactions.size(); ++reaction) {
+		const auto idx = reactions[reaction];
 		for(const auto &[place, w] : consumed(dg, m, idx))
 			stoichiometric(place.getId(), reaction) -= w;
 		for(const auto &[place, w] : produced(dg, m, idx))
 			stoichiometric(place.getId(), reaction) += w;
-
-		reactions.emplace_back(idx);
-		propensities(reaction) = propensity;
-		reaction++;
 	}
 
     double eta = 0.05;
@@ -823,18 +958,11 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
     }
 
     boost::numeric::ublas::vector<double> deltas = Ks[stages];
+	state += deltas;
+	for(std::size_t i = 0; i < state.size(); ++i)
+		state(i) = std::max(0.0, state(i));
 
-    // construct an UpdateAction from the deltas
-	std::vector<std::pair<lib::DG::HyperVertex, int>> updates;
-	for(const auto v: asRange(vertices(dgGraph))) {
-		if(dgGraph[v].kind == lib::DG::HyperVertexKind::Vertex) {
-			const auto place = m.getNet().getPlace(v);
-			const int delta = std::lround(deltas(place.getId()));
-			if(delta != 0) updates.emplace_back(v, delta);
-		}
-	}
-	Action action = UpdateAction{std::move(updates)};
-	return {action, tau, true};
+	return {makeSyncAction(m), tau, true};
 }
 
 // ==============================================================================================
