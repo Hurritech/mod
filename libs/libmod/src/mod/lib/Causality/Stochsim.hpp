@@ -106,6 +106,7 @@ private:
     const double tau;
     const int stages;
     bool stateInitialised = false;
+    bool domainFailure = false;
     boost::numeric::ublas::vector<double> state;
     std::vector<double> cachedInputRates, cachedRates;
 };

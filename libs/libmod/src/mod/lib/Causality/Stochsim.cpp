@@ -223,6 +223,24 @@ bool hasPositiveEntry(const boost::numeric::ublas::vector<double> &v) {
 	return false;
 }
 
+bool reportInvalidRealState(
+		const char *solver,
+		const boost::numeric::ublas::vector<double> &state,
+		const boost::numeric::ublas::vector<double> *deltas = nullptr) {
+	for(std::size_t i = 0; i < state.size(); ++i) {
+		const double value = state(i) + (deltas ? (*deltas)(i) : 0.0);
+		if(!std::isfinite(value) || value < 0.0) {
+			std::cerr << solver
+					<< ": stopping simulation because the CLE state left the nonnegative real domain at place "
+					<< i << " with value " << value
+					<< ". Reduce tau or use a discrete/hybrid/complex solver near low-copy states."
+					<< std::endl;
+			return true;
+		}
+	}
+	return false;
+}
+
 Complex complexReactionPropensity(
 		lib::DG::HyperVertex e,
 		const Marking &m,
@@ -705,7 +723,7 @@ boost::numeric::ublas::vector<double> DrawMassActionEulerMaruyamaFunction::prope
 				results(i) = r * reactionPropensity;
 			} else {
 				const auto place = m.getNet().getPlace(v);
-				results(i) = r * std::max(0.0, state(place.getId()));
+				results(i) = r * state(place.getId());
 			}
 		} else {
 			const auto rateIdx = -idx - 1;
@@ -731,7 +749,7 @@ Action DrawMassActionEulerMaruyamaFunction::makeSyncAction(const Marking &m) con
 	for(const auto v: asRange(vertices(dg.getGraph()))) {
 		if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
 		const auto place = m.getNet().getPlace(v);
-		const int desired = static_cast<int>(std::lround(std::max(0.0, state(place.getId()))));
+		const int desired = static_cast<int>(std::lround(state(place.getId())));
 		const int delta = desired - m.getMarking()[place];
 		if(delta != 0) updates.emplace_back(v, delta);
 	}
@@ -741,6 +759,9 @@ Action DrawMassActionEulerMaruyamaFunction::makeSyncAction(const Marking &m) con
 std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(const Marking &m) {
 	const auto &dgGraph = dg.getGraph();
 	syncState(m);
+	if(reportInvalidRealState("DrawMassActionEulerMaruyamaFunction", state)) {
+		return {{}, 0.0, false};
+	}
 
 	// idx of the reactions
 	std::vector<int> reactions;
@@ -779,8 +800,9 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 
 	boost::numeric::ublas::vector<double> deltas = tau * drift + std::sqrt(tau) * diffusion;
 	state += deltas;
-	for(std::size_t i = 0; i < state.size(); ++i)
-		state(i) = std::max(0.0, state(i));
+	if(reportInvalidRealState("DrawMassActionEulerMaruyamaFunction", state)) {
+		return {{}, 0.0, false};
+	}
 
 	return {makeSyncAction(m), tau, true};
 }
@@ -831,7 +853,7 @@ Action DrawMassActionSKRockFunction::makeSyncAction(const Marking &m) const {
 	for(const auto v: asRange(vertices(dg.getGraph()))) {
 		if(dg.getGraph()[v].kind != lib::DG::HyperVertexKind::Vertex) continue;
 		const auto place = m.getNet().getPlace(v);
-		const int desired = static_cast<int>(std::lround(std::max(0.0, state(place.getId()))));
+		const int desired = static_cast<int>(std::lround(state(place.getId())));
 		const int delta = desired - m.getMarking()[place];
 		if(delta != 0) updates.emplace_back(v, delta);
 	}
@@ -851,6 +873,10 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensities
     boost::numeric::ublas::vector<double> deltas) {
     const auto &dgGraph = dg.getGraph();
     boost::numeric::ublas::vector<double> results(reactions.size(), 0.0);
+	if(reportInvalidRealState("DrawMassActionSKRockFunction", state, &deltas)) {
+		domainFailure = true;
+		return results;
+	}
 
     for(std::size_t i = 0; i < reactions.size(); i++) {
         const int idx = reactions[i];
@@ -886,7 +912,7 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::propensities
                 results(i) = r * reactionPropensity;
             else {
                 const auto place = m.getNet().getPlace(v);
-                results(i) = r * std::max(0.0, state(place.getId()) + deltas(place.getId()));
+                results(i) = r * (state(place.getId()) + deltas(place.getId()));
             }
         } else {
             const auto v = vertices(dgGraph).first[-idx - 1];
@@ -915,11 +941,14 @@ boost::numeric::ublas::vector<double> DrawMassActionSKRockFunction::f(
     const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
     const std::vector<int> &reactions,
     boost::numeric::ublas::vector<double> deltas) {
+	if(domainFailure)
+		return boost::numeric::ublas::vector<double>(stoichiometric.size1(), 0.0);
     return boost::numeric::ublas::prod(stoichiometric, propensitiesWithDeltas(m, reactions, deltas));
 }
 
 std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Marking &m) {
     const auto &dgGraph = dg.getGraph();
+	domainFailure = false;
 	syncState(m);
 	if(stages < 1)
 		return {{}, 0.0, false};
@@ -937,6 +966,8 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
 	}
 	boost::numeric::ublas::vector<double> zeroDeltas(m.getNet().getNet().numPlaces(), 0.0);
 	auto propensities = propensitiesWithDeltas(m, reactions, zeroDeltas);
+	if(domainFailure)
+		return {{}, 0.0, false};
 	if(propensities.size() == 0 || !hasPositiveEntry(propensities))
 		return {{}, 0.0, false};
 
@@ -995,15 +1026,21 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
     std::vector<boost::numeric::ublas::vector<double>> Ks(stages+1);
     Ks[0] = boost::numeric::ublas::vector<double>(stoichiometric.size1(), 0.0);
     Ks[1] = mus[0] * tau * f(m, stoichiometric, reactions, nus[0] * Q) + kappas[0] * Q;
+	if(domainFailure)
+		return {{}, 0.0, false};
     for(int i = 2; i <= stages; i++) {
         boost::numeric::ublas::vector<double> fResult = f(m, stoichiometric, reactions, Ks[i-1]);
+		if(domainFailure)
+			return {{}, 0.0, false};
         Ks[i] = mus[i-1] * tau * fResult + nus[i-1] * Ks[i-1] + kappas[i-1] * Ks[i-2];
     }
 
     boost::numeric::ublas::vector<double> deltas = Ks[stages];
 	state += deltas;
-	for(std::size_t i = 0; i < state.size(); ++i)
-		state(i) = std::max(0.0, state(i));
+	if(reportInvalidRealState("DrawMassActionSKRockFunction", state)) {
+		domainFailure = true;
+		return {{}, 0.0, false};
+	}
 
 	return {makeSyncAction(m), tau, true};
 }
