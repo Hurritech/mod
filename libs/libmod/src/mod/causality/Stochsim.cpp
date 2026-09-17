@@ -195,7 +195,7 @@ DrawMassActionEulerMaruyamaFunction::DrawMassActionEulerMaruyamaFunction(std::sh
         std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
         std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
         std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-        double tau) {
+        double epsilon) {
 	if(!dg_) throw LogicError("The derivation graph is a null pointer.");
 	if(!dg_->hasActiveBuilder() && !dg_->isLocked())
 		throw LogicError("The DG neither has an active builder nor is locked yet.");
@@ -222,7 +222,7 @@ DrawMassActionEulerMaruyamaFunction::DrawMassActionEulerMaruyamaFunction(std::sh
 	}
 	p.reset(new Pimpl{
 		dg_, lib::Causality::DrawMassActionEulerMaruyamaFunction(
-				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, tau)
+				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, epsilon)
 	});
 }
 
@@ -285,7 +285,7 @@ DrawMassActionSKRockFunction::DrawMassActionSKRockFunction(std::shared_ptr<dg::D
         std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
         std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
         std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-        double tau,
+        double epsilon,
         int stages) {
 	if(!dg_) throw LogicError("The derivation graph is a null pointer.");
 	if(!dg_->hasActiveBuilder() && !dg_->isLocked())
@@ -313,7 +313,7 @@ DrawMassActionSKRockFunction::DrawMassActionSKRockFunction(std::shared_ptr<dg::D
 	}
 	p.reset(new Pimpl{
 		dg_, lib::Causality::DrawMassActionSKRockFunction(
-				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, tau, stages)
+				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, epsilon, stages)
 	});
 }
 
@@ -376,7 +376,7 @@ DrawMassActionComplexEulerMaruyamaFunction::DrawMassActionComplexEulerMaruyamaFu
         std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
         std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
         std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-        double tau) {
+        double epsilon) {
 	if(!dg_) throw LogicError("The derivation graph is a null pointer.");
 	if(!dg_->hasActiveBuilder() && !dg_->isLocked())
 		throw LogicError("The DG neither has an active builder nor is locked yet.");
@@ -403,7 +403,7 @@ DrawMassActionComplexEulerMaruyamaFunction::DrawMassActionComplexEulerMaruyamaFu
 	}
 	p.reset(new Pimpl{
 		dg_, lib::Causality::DrawMassActionComplexEulerMaruyamaFunction(
-				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, tau)
+				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, epsilon)
 	});
 }
 
@@ -466,7 +466,7 @@ DrawMassActionComplexSKRockFunction::DrawMassActionComplexSKRockFunction(std::sh
         std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
         std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
         std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-        double tau,
+        double epsilon,
         int stages) {
 	if(!dg_) throw LogicError("The derivation graph is a null pointer.");
 	if(!dg_->hasActiveBuilder() && !dg_->isLocked())
@@ -494,7 +494,7 @@ DrawMassActionComplexSKRockFunction::DrawMassActionComplexSKRockFunction(std::sh
 	}
 	p.reset(new Pimpl{
 		dg_, lib::Causality::DrawMassActionComplexSKRockFunction(
-				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, tau, stages)
+				dg_->getHyper(), inputRateInner, reactionRateInner, outputRateInner, epsilon, stages)
 	});
 }
 

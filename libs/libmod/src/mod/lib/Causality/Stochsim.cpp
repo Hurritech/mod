@@ -12,8 +12,9 @@
 #include <iostream>
 #include <cmath>
 #include <ctime>
+#include <limits>
 
-#define USE_TIMER
+// #define USE_TIMER
 
 #ifdef USE_TIMER
     #define INIT_TIMER\
@@ -223,6 +224,32 @@ bool hasPositiveEntry(const boost::numeric::ublas::vector<double> &v) {
 	return false;
 }
 
+double selectRealTau(
+		const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
+		const boost::numeric::ublas::vector<double> &propensities,
+		const boost::numeric::ublas::vector<double> &state,
+		double epsilon) {
+	// Use the tau-leaping leap condition on the continuous CLE state.
+	const boost::numeric::ublas::vector<double> means =
+			boost::numeric::ublas::prod(stoichiometric, propensities);
+	const boost::numeric::ublas::vector<double> variances = boost::numeric::ublas::prod(
+			boost::numeric::ublas::element_prod(stoichiometric, stoichiometric), propensities);
+	std::vector<double> gs(state.size(), 1.0);
+	for(auto row = stoichiometric.begin1(); row != stoichiometric.end1(); ++row)
+		for(auto entry = row.begin(); entry != row.end(); ++entry)
+			gs[row.index1()] = std::max(gs[row.index1()], -*entry);
+
+	double tau = std::numeric_limits<double>::infinity();
+	for(std::size_t i = 0; i < state.size(); ++i) {
+		const double bound = std::max(state(i) * epsilon / gs[i], 1.0);
+		if(means(i) != 0.0)
+			tau = std::min(tau, bound / std::abs(means(i)));
+		if(variances(i) > 0.0)
+			tau = std::min(tau, bound * bound / variances(i));
+	}
+	return tau;
+}
+
 bool reportInvalidRealState(
 		const char *solver,
 		const boost::numeric::ublas::vector<double> &state,
@@ -279,6 +306,32 @@ ComplexVector complexProd(
 			result(it2.index1()) += *it2 * v(it2.index2());
 	}
 	return result;
+}
+
+double selectComplexTau(
+		const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
+		const ComplexVector &propensities,
+		const ComplexVector &state,
+		double epsilon) {
+	const ComplexVector means = complexProd(stoichiometric, propensities);
+	std::vector<double> variances(state.size(), 0.0), gs(state.size(), 1.0);
+	for(auto row = stoichiometric.begin1(); row != stoichiometric.end1(); ++row) {
+		for(auto entry = row.begin(); entry != row.end(); ++entry) {
+			gs[row.index1()] = std::max(gs[row.index1()], -*entry);
+			// E[|noise|^2] uses |a| since the noise coefficient is sqrt(a).
+			variances[row.index1()] += *entry * *entry * std::abs(propensities(entry.index2()));
+		}
+	}
+	double tau = std::numeric_limits<double>::infinity();
+	for(std::size_t i = 0; i < state.size(); ++i) {
+		const double bound = std::max(std::abs(state(i)) * epsilon / gs[i], 1.0);
+		const double mean = std::abs(means(i));
+		if(mean > 0.0)
+			tau = std::min(tau, bound / mean);
+		if(variances[i] > 0.0)
+			tau = std::min(tau, bound * bound / variances[i]);
+	}
+	return tau;
 }
 
 } // namespace
@@ -655,8 +708,8 @@ DrawMassActionEulerMaruyamaFunction::DrawMassActionEulerMaruyamaFunction(
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-	double tau)
-	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau) {
+	double epsilon)
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), epsilon(epsilon) {
 	syncSize();
 }
 
@@ -787,6 +840,9 @@ std::tuple<Action, double, bool> DrawMassActionEulerMaruyamaFunction::draw_v0(co
 			stoichiometric(place.getId(), reaction) += w;
 	}
 
+	const double tau = selectRealTau(stoichiometric, propensities, state, epsilon);
+	if(!std::isfinite(tau) || tau <= 0.0)
+		return {{}, 0.0, false};
 	boost::numeric::ublas::vector<double> drift = boost::numeric::ublas::prod(stoichiometric, propensities);
 
 	boost::numeric::ublas::vector<double> wienerIncrement(propensities.size());
@@ -814,9 +870,9 @@ DrawMassActionSKRockFunction::DrawMassActionSKRockFunction(
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-	double tau,
+	double epsilon,
 	int stages)
-	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau), stages(stages) {
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), epsilon(epsilon), stages(stages) {
 	syncSize();
 }
 
@@ -980,6 +1036,10 @@ std::tuple<Action, double, bool> DrawMassActionSKRockFunction::draw_v0(const Mar
 			stoichiometric(place.getId(), reaction) += w;
 	}
 
+	const double tau = selectRealTau(stoichiometric, propensities, state, epsilon);
+	if(!std::isfinite(tau) || tau <= 0.0)
+		return {{}, 0.0, false};
+
     double eta = 0.05;
     double omega0 = 1 + eta / (static_cast<double>(stages) * static_cast<double>(stages));
 
@@ -1052,8 +1112,8 @@ DrawMassActionComplexEulerMaruyamaFunction::DrawMassActionComplexEulerMaruyamaFu
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-	double tau)
-	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau) {
+	double epsilon)
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), epsilon(epsilon) {
 	syncSize();
 }
 
@@ -1178,6 +1238,9 @@ std::tuple<Action, double, bool> DrawMassActionComplexEulerMaruyamaFunction::dra
 			stoichiometric(place.getId(), reaction) += w;
 	}
 
+	const double tau = selectComplexTau(stoichiometric, propensities, state, epsilon);
+	if(!std::isfinite(tau) || tau <= 0.0)
+		return {{}, 0.0, false};
 	ComplexVector drift = complexProd(stoichiometric, propensities);
 	ComplexVector wienerIncrement(propensities.size());
 	for(int i = 0; i < wienerIncrement.size(); i++) {
@@ -1200,9 +1263,9 @@ DrawMassActionComplexSKRockFunction::DrawMassActionComplexSKRockFunction(
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
 	std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-	double tau,
+	double epsilon,
 	int stages)
-	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), tau(tau), stages(stages) {
+	: dg(dg), inputRate(inputRate), reactionRate(reactionRate), outputRate(outputRate), epsilon(epsilon), stages(stages) {
 	syncSize();
 }
 
@@ -1350,6 +1413,10 @@ std::tuple<Action, double, bool> DrawMassActionComplexSKRockFunction::draw_v0(co
 		for(const auto &[place, w] : produced(dg, m, idx))
 			stoichiometric(place.getId(), reaction) += w;
 	}
+
+	const double tau = selectComplexTau(stoichiometric, propensities, state, epsilon);
+	if(!std::isfinite(tau) || tau <= 0.0)
+		return {{}, 0.0, false};
 
     double eta = 0.05;
     double omega0 = 1 + eta / (static_cast<double>(stages) * static_cast<double>(stages));

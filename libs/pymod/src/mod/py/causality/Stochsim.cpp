@@ -36,12 +36,12 @@ DrawMassActionEulerMaruyamaFunction_ctor(std::shared_ptr<dg::DG> dg_,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
-                            double tau) {
+                            double epsilon) {
 	return std::make_shared<DrawMassActionEulerMaruyamaFunction>(dg_,
 	                                                toStdFunction(inputRate),
 	                                                toStdFunction(reactionRate),
 	                                                toStdFunction(outputRate),
-	                                                tau);
+	                                                epsilon);
 }
 
 std::shared_ptr<DrawMassActionSKRockFunction>
@@ -49,12 +49,12 @@ DrawMassActionSKRockFunction_ctor(std::shared_ptr<dg::DG> dg_,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
-                            double tau, int stages) {
+                            double epsilon, int stages) {
 	return std::make_shared<DrawMassActionSKRockFunction>(dg_,
 	                                                toStdFunction(inputRate),
 	                                                toStdFunction(reactionRate),
 	                                                toStdFunction(outputRate),
-	                                                tau, stages);
+	                                                epsilon, stages);
 }
 
 std::shared_ptr<DrawMassActionComplexEulerMaruyamaFunction>
@@ -62,12 +62,12 @@ DrawMassActionComplexEulerMaruyamaFunction_ctor(std::shared_ptr<dg::DG> dg_,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
-                            double tau) {
+                            double epsilon) {
 	return std::make_shared<DrawMassActionComplexEulerMaruyamaFunction>(dg_,
 	                                                toStdFunction(inputRate),
 	                                                toStdFunction(reactionRate),
 	                                                toStdFunction(outputRate),
-	                                                tau);
+	                                                epsilon);
 }
 
 std::shared_ptr<DrawMassActionComplexSKRockFunction>
@@ -75,12 +75,12 @@ DrawMassActionComplexSKRockFunction_ctor(std::shared_ptr<dg::DG> dg_,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> inputRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::HyperEdge)>> reactionRate,
                             std::shared_ptr<mod::Function<std::pair<double, bool>(dg::DG::Vertex)>> outputRate,
-                            double tau, int stages) {
+                            double epsilon, int stages) {
 	return std::make_shared<DrawMassActionComplexSKRockFunction>(dg_,
 	                                                toStdFunction(inputRate),
 	                                                toStdFunction(reactionRate),
 	                                                toStdFunction(outputRate),
-	                                                tau, stages);
+	                                                epsilon, stages);
 }
 
 std::shared_ptr<SimulatorImpl>

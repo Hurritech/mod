@@ -159,7 +159,7 @@ struct MOD_DECL DrawMassActionEulerMaruyamaFunction {
 	// rst:        std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate, \
 	// rst:        std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate, \
 	// rst:        std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate, \
-	// rst:        double tau)
+	// rst:        double epsilon)
 	// rst:
 	// rst:		Construct a new instance, based on the given derivation graph.
 	// rst:		The return value of the rate callbacks must be 1) the rate and 2) a boolean telling whether
@@ -173,7 +173,7 @@ struct MOD_DECL DrawMassActionEulerMaruyamaFunction {
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
 	                   std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-	                   double tau);
+	                   double epsilon);
 	~DrawMassActionEulerMaruyamaFunction();
 	DrawMassActionEulerMaruyamaFunction(DrawMassActionEulerMaruyamaFunction &&);
 	DrawMassActionEulerMaruyamaFunction &operator=(DrawMassActionEulerMaruyamaFunction &&);
@@ -211,7 +211,7 @@ struct MOD_DECL DrawMassActionSKRockFunction {
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
 	                   std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-	                   double tau,
+	                   double epsilon,
 	                   int stages);
 	~DrawMassActionSKRockFunction();
 	DrawMassActionSKRockFunction(DrawMassActionSKRockFunction &&);
@@ -232,7 +232,7 @@ struct MOD_DECL DrawMassActionComplexEulerMaruyamaFunction {
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
 	                   std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-	                   double tau);
+	                   double epsilon);
 	~DrawMassActionComplexEulerMaruyamaFunction();
 	DrawMassActionComplexEulerMaruyamaFunction(DrawMassActionComplexEulerMaruyamaFunction &&);
 	DrawMassActionComplexEulerMaruyamaFunction &operator=(DrawMassActionComplexEulerMaruyamaFunction &&);
@@ -252,7 +252,7 @@ struct MOD_DECL DrawMassActionComplexSKRockFunction {
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> inputRate,
 	                   std::function<std::pair<double, bool>(dg::DG::HyperEdge)> reactionRate,
 	                   std::function<std::pair<double, bool>(dg::DG::Vertex)> outputRate,
-	                   double tau,
+	                   double epsilon,
 	                   int stages);
 	~DrawMassActionComplexSKRockFunction();
 	DrawMassActionComplexSKRockFunction(DrawMassActionComplexSKRockFunction &&);

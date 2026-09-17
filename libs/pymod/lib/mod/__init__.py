@@ -1262,15 +1262,15 @@ class _Simulator:
                     Tuple[float, bool]], Tuple[float, bool]] = None,
                 outputRate:   Union[None, Callable[[DG.Vertex],
                     Tuple[float, bool]], Tuple[float, bool]] = None,
-                tau:          float = 0.01) -> None:  # timestep of the simulation
+                epsilon:      float = 0.05) -> None:  # strictness of the leap condition
             self.inputRate = inputRate
             self.reactionRate = reactionRate
             self.outputRate = outputRate
-            self.tau = tau
+            self.epsilon = epsilon
 
         def __call__(self, dg: DG) -> "causality.Simulator.DrawMassActionEulerMaruyamaFunction":
             return causality.Simulator.DrawMassActionEulerMaruyama.Function(dg,
-                self.inputRate, self.reactionRate, self.outputRate, self.tau)
+                self.inputRate, self.reactionRate, self.outputRate, self.epsilon)
 
     class DrawMassActionSKRock:
         def __init__(self, *,
@@ -1280,17 +1280,17 @@ class _Simulator:
                     Tuple[float, bool]], Tuple[float, bool]] = None,
                 outputRate:   Union[None, Callable[[DG.Vertex],
                     Tuple[float, bool]], Tuple[float, bool]] = None,
-                tau:          float = 0.01,
+                epsilon:      float = 0.05,  # strictness of the leap condition
                 stages:       int = 10) -> None:
             self.inputRate = inputRate
             self.reactionRate = reactionRate
             self.outputRate = outputRate
-            self.tau = tau
+            self.epsilon = epsilon
             self.stages = stages
 
         def __call__(self, dg: DG) -> "causality.Simulator.DrawMassActionSKRockFunction":
             return causality.Simulator.DrawMassActionSKRock.Function(dg,
-                self.inputRate, self.reactionRate, self.outputRate, self.tau, self.stages)
+                self.inputRate, self.reactionRate, self.outputRate, self.epsilon, self.stages)
 
     class DrawMassActionComplexEulerMaruyama:
         def __init__(self, *,
@@ -1300,15 +1300,15 @@ class _Simulator:
                     Tuple[float, bool]], Tuple[float, bool]] = None,
                 outputRate:   Union[None, Callable[[DG.Vertex],
                     Tuple[float, bool]], Tuple[float, bool]] = None,
-                tau:          float = 0.01) -> None:
+                epsilon:      float = 0.05) -> None:
             self.inputRate = inputRate
             self.reactionRate = reactionRate
             self.outputRate = outputRate
-            self.tau = tau
+            self.epsilon = epsilon
 
         def __call__(self, dg: DG) -> "causality.Simulator.DrawMassActionComplexEulerMaruyamaFunction":
             return causality.Simulator.DrawMassActionComplexEulerMaruyama.Function(dg,
-                self.inputRate, self.reactionRate, self.outputRate, self.tau)
+                self.inputRate, self.reactionRate, self.outputRate, self.epsilon)
 
     class DrawMassActionComplexSKRock:
         def __init__(self, *,
@@ -1318,17 +1318,17 @@ class _Simulator:
                     Tuple[float, bool]], Tuple[float, bool]] = None,
                 outputRate:   Union[None, Callable[[DG.Vertex],
                     Tuple[float, bool]], Tuple[float, bool]] = None,
-                tau:          float = 0.01,
+                epsilon:      float = 0.05,
                 stages:       int = 10) -> None:
             self.inputRate = inputRate
             self.reactionRate = reactionRate
             self.outputRate = outputRate
-            self.tau = tau
+            self.epsilon = epsilon
             self.stages = stages
 
         def __call__(self, dg: DG) -> "causality.Simulator.DrawMassActionComplexSKRockFunction":
             return causality.Simulator.DrawMassActionComplexSKRock.Function(dg,
-                self.inputRate, self.reactionRate, self.outputRate, self.tau, self.stages)
+                self.inputRate, self.reactionRate, self.outputRate, self.epsilon, self.stages)
 
     def __init__(self, *,
             labelSettings: LabelSettings = LabelSettings(
@@ -1552,11 +1552,11 @@ def _DrawMassActionEulerMaruyamaFunction__init__(self: causality.Simulator.DrawM
                 Tuple[float, bool]], Tuple[float, bool]],
             outputRate: Union[None, Callable[[DG.Vertex],
                 Tuple[float, bool]], Tuple[float, bool]],
-            tau: float) -> None:
+            epsilon: float) -> None:
     inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
     reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
-    return _DrawMassActionEulerMaruyamaFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau)
+    return _DrawMassActionEulerMaruyamaFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, epsilon)
 causality.Simulator.DrawMassActionEulerMaruyama.Function.__init__ = _DrawMassActionEulerMaruyamaFunction__init__
 
 _DrawMassActionSKRockFunction__init__orig = causality.Simulator.DrawMassActionSKRock.Function.__init__
@@ -1568,12 +1568,12 @@ def _DrawMassActionSKRockFunction__init__(self: causality.Simulator.DrawMassActi
                 Tuple[float, bool]], Tuple[float, bool]],
             outputRate: Union[None, Callable[[DG.Vertex],
                 Tuple[float, bool]], Tuple[float, bool]],
-            tau: float,
+            epsilon: float,
             stages: int) -> None:
     inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
     reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
-    return _DrawMassActionSKRockFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau, stages)
+    return _DrawMassActionSKRockFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, epsilon, stages)
 causality.Simulator.DrawMassActionSKRock.Function.__init__ = _DrawMassActionSKRockFunction__init__
 
 _DrawMassActionComplexEulerMaruyamaFunction__init__orig = causality.Simulator.DrawMassActionComplexEulerMaruyama.Function.__init__
@@ -1585,11 +1585,11 @@ def _DrawMassActionComplexEulerMaruyamaFunction__init__(self: causality.Simulato
                 Tuple[float, bool]], Tuple[float, bool]],
             outputRate: Union[None, Callable[[DG.Vertex],
                 Tuple[float, bool]], Tuple[float, bool]],
-            tau: float) -> None:
+            epsilon: float) -> None:
     inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
     reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
-    return _DrawMassActionComplexEulerMaruyamaFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau)
+    return _DrawMassActionComplexEulerMaruyamaFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, epsilon)
 causality.Simulator.DrawMassActionComplexEulerMaruyama.Function.__init__ = _DrawMassActionComplexEulerMaruyamaFunction__init__
 
 _DrawMassActionComplexSKRockFunction__init__orig = causality.Simulator.DrawMassActionComplexSKRock.Function.__init__
@@ -1601,12 +1601,12 @@ def _DrawMassActionComplexSKRockFunction__init__(self: causality.Simulator.DrawM
                 Tuple[float, bool]], Tuple[float, bool]],
             outputRate: Union[None, Callable[[DG.Vertex],
                 Tuple[float, bool]], Tuple[float, bool]],
-            tau: float,
+            epsilon: float,
             stages: int) -> None:
     inputRate = None if inputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, inputRate)
     reactionRate = None if reactionRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGHyperEdge, reactionRate)
     outputRate = None if outputRate is None else _funcWrap(libpymod._Func_PairDoubleBoolDGVertex, outputRate)
-    return _DrawMassActionComplexSKRockFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, tau, stages)
+    return _DrawMassActionComplexSKRockFunction__init__orig(self, dg, inputRate, reactionRate, outputRate, epsilon, stages)
 causality.Simulator.DrawMassActionComplexSKRock.Function.__init__ = _DrawMassActionComplexSKRockFunction__init__
 
 

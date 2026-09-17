@@ -60,7 +60,7 @@ struct DrawMassActionEulerMaruyamaFunction {
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-        double tau);
+        double epsilon);
     void syncSize();
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
@@ -73,7 +73,7 @@ private:
     const lib::DG::Hyper &dg;
     const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
             inputRate, reactionRate, outputRate;
-    const double tau;
+    const double epsilon;
     bool stateInitialised = false;
     boost::numeric::ublas::vector<double> state;
     std::vector<double> cachedInputRates, cachedRates;
@@ -84,7 +84,7 @@ struct DrawMassActionSKRockFunction {
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-        double tau, int stages);
+        double epsilon, int stages);
     void syncSize();
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
@@ -103,7 +103,7 @@ private:
     const lib::DG::Hyper &dg;
     const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
             inputRate, reactionRate, outputRate;
-    const double tau;
+    const double epsilon;
     const int stages;
     bool stateInitialised = false;
     bool domainFailure = false;
@@ -118,7 +118,7 @@ struct DrawMassActionComplexEulerMaruyamaFunction {
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-        double tau);
+        double epsilon);
     void syncSize();
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
@@ -130,7 +130,7 @@ private:
     const lib::DG::Hyper &dg;
     const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
             inputRate, reactionRate, outputRate;
-    const double tau;
+    const double epsilon;
     bool stateInitialised = false;
     ComplexVector state;
     std::vector<double> cachedInputRates, cachedRates;
@@ -143,7 +143,7 @@ struct DrawMassActionComplexSKRockFunction {
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> inputRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> reactionRate,
         std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)> outputRate,
-        double tau, int stages);
+        double epsilon, int stages);
     void syncSize();
     std::tuple<Action, double, bool> draw(const Marking &m);
 private:
@@ -162,7 +162,7 @@ private:
     const lib::DG::Hyper &dg;
     const std::function<std::pair<double, bool>(const lib::DG::Hyper &, lib::DG::HyperVertex)>
             inputRate, reactionRate, outputRate;
-    const double tau;
+    const double epsilon;
     const int stages;
     bool stateInitialised = false;
     ComplexVector state;
