@@ -224,6 +224,24 @@ bool hasPositiveEntry(const boost::numeric::ublas::vector<double> &v) {
 	return false;
 }
 
+// Approximate CLE deadlock: drift and RMS noise over one simulation-time
+// unit are both negligible for every species. Check moments rather than a
+// random sample so balanced reactions with significant noise remain active.
+constexpr double cleDeadlockTolerance = 1e-12;
+
+template<typename Means, typename Variances>
+bool hasSignificantCLEActivity(const Means &means, const Variances &variances) {
+	for(std::size_t i = 0; i < means.size(); ++i) {
+		const double mean = std::abs(means[i]);
+		const double variance = variances[i];
+		if(!std::isfinite(mean) || !std::isfinite(variance))
+			return true; // Invalid values are not evidence of negligible activity.
+		if(mean > cleDeadlockTolerance || variance > cleDeadlockTolerance * cleDeadlockTolerance)
+			return true;
+	}
+	return false;
+}
+
 double selectRealTau(
 		const boost::numeric::ublas::mapped_matrix<double> &stoichiometric,
 		const boost::numeric::ublas::vector<double> &propensities,
@@ -234,6 +252,7 @@ double selectRealTau(
 			boost::numeric::ublas::prod(stoichiometric, propensities);
 	const boost::numeric::ublas::vector<double> variances = boost::numeric::ublas::prod(
 			boost::numeric::ublas::element_prod(stoichiometric, stoichiometric), propensities);
+	if(!hasSignificantCLEActivity(means, variances)) return 0.0;
 	std::vector<double> gs(state.size(), 1.0);
 	for(auto row = stoichiometric.begin1(); row != stoichiometric.end1(); ++row)
 		for(auto entry = row.begin(); entry != row.end(); ++entry)
@@ -322,6 +341,7 @@ double selectComplexTau(
 			variances[row.index1()] += *entry * *entry * std::abs(propensities(entry.index2()));
 		}
 	}
+	if(!hasSignificantCLEActivity(means, variances)) return 0.0;
 	double tau = std::numeric_limits<double>::infinity();
 	for(std::size_t i = 0; i < state.size(); ++i) {
 		const double bound = std::max(std::abs(state(i)) * epsilon / gs[i], 1.0);

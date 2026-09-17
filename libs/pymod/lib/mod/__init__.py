@@ -1434,6 +1434,12 @@ class _Simulator:
         stopTime = None if time is None else self._impl.time + time
         stopIter = None if iterations is None else self._impl.iteration + iterations
         marking = self._marking
+        isCLE = isinstance(self._draw, (
+            causality.Simulator.DrawMassActionEulerMaruyama.Function,
+            causality.Simulator.DrawMassActionSKRock.Function,
+            causality.Simulator.DrawMassActionComplexEulerMaruyama.Function,
+            causality.Simulator.DrawMassActionComplexSKRock.Function,
+        ))
 
         subset = marking.getNonZeroPlaces()
         if self._doExpansion:
@@ -1462,11 +1468,15 @@ class _Simulator:
                 break
 
             timeInc = rateSum if isTimeInc else self._drawTime(rateSum)
-            if stopTime is not None and self._impl.time + timeInc > stopTime:
+            nextTime = self._impl.time + timeInc
+            if isCLE and nextTime <= self._impl.time:
+                self.onDeadlock(self)
+                break
+            if stopTime is not None and nextTime > stopTime:
                 if advanceToEndTime:
                     self._impl.time = stopTime
                 break
-            self._impl.time += timeInc
+            self._impl.time = nextTime
 
             # Update state
             if isinstance(action, causality.EdgeAction):
